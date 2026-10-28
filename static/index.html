@@ -94,6 +94,61 @@
   <!-- Main Container -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
+    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4" aria-labelledby="bulkHeading">
+      <div>
+        <h2 id="bulkHeading" class="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-brand-500"></span> Bulk Synchronization
+        </h2>
+        <p class="text-xs text-slate-400 mt-2">Enter local folder paths. MP3 files are processed first in filename order, then matched with numbered <code>*_arabic.srt</code> files. Corrected Arabic SRT files are saved in the MP3 folder using the matched <code>*_arabic.srt</code> filename.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <label class="space-y-1.5">
+          <span class="text-xs font-medium text-slate-300">MP3 folder</span>
+          <input id="bulkAudioDir" type="text" autocomplete="off" placeholder="C:\Quran\audio" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-brand-500">
+        </label>
+        <label class="space-y-1.5">
+          <span class="text-xs font-medium text-slate-300">Arabic SRT folder</span>
+          <input id="bulkSrtDir" type="text" autocomplete="off" placeholder="C:\Quran\srt" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-brand-500">
+        </label>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button id="btnBulkScan" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs border border-slate-700 transition">
+          Find Matching Files
+        </button>
+        <button id="btnBulkStart" type="button" disabled class="px-4 py-2 rounded-xl bg-slate-800 text-slate-500 font-medium text-xs cursor-not-allowed transition">
+          Start Bulk Sync
+        </button>
+        <span id="bulkStatus" class="text-xs text-slate-400" role="status">Choose both folders, then find matches.</span>
+      </div>
+
+      <div id="bulkProgress" class="hidden space-y-2" aria-live="polite">
+        <div class="flex justify-between text-xs text-slate-400">
+          <span id="bulkProgressText">Preparing bulk synchronization...</span>
+          <span id="bulkProgressCount" class="font-mono">0 / 0</span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+          <div id="bulkProgressBar" class="bg-gradient-to-r from-brand-600 to-emerald-400 h-2 transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <div id="bulkMatchesPanel" class="hidden overflow-x-auto rounded-xl border border-slate-800">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-slate-800/70 text-slate-400 uppercase tracking-wider">
+            <tr>
+              <th class="px-3 py-2">MP3</th>
+              <th class="px-3 py-2">Arabic SRT</th>
+              <th class="px-3 py-2">Result</th>
+            </tr>
+          </thead>
+          <tbody id="bulkMatchesList" class="divide-y divide-slate-800"></tbody>
+        </table>
+      </div>
+
+      <ul id="bulkIssues" class="hidden space-y-1 text-xs text-amber-300" role="status"></ul>
+    </section>
+
     <!-- Upload & Quick Overview Grid -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
@@ -353,6 +408,6 @@
     <p>Quran SRT Sync &bull; Built with PyTorch, Whisper, SoundFile & FastAPI &bull; Formatted for CapCut Video Production</p>
   </footer>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=bulk-ui-20261028"></script>
 </body>
 </html>

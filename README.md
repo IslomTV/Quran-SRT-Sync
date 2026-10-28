@@ -40,6 +40,7 @@ It solves the common problem where imported SRT subtitles lag, lead, or drift ou
 
 ### 5. Modern Interactive Web Interface & Audio Player
 - **Dual Dropzone**: Drag-and-drop MP3, WAV, or M4A audio files and Arabic SRT files.
+- **Bulk Synchronization**: Enter server-local MP3 and SRT folder paths to preview numbered matches, process them with per-file progress, and save corrected SRTs directly into the SRT folder's `corrected` subfolder.
 - **Live Karaoke Teleprompter**: The active subtitle glows emerald and auto-scrolls in real-time as the recitation plays.
 - **Click-to-Seek**: Click any subtitle line to instantly jump playback to that timestamp.
 - **Side-by-Side Comparison**: Displays original timing, corrected timing, shift delta ($\Delta t$), and authoritative text.
@@ -67,6 +68,14 @@ This automatically starts the server and opens your browser at:
 On Windows, the launcher uses the selector event loop to avoid noisy connection-reset
 tracebacks when the browser closes an audio stream.
 
+For bulk synchronization in the web interface, enter the local MP3 folder and the local
+Arabic SRT folder, then select **Find Matching Files**. The app scans MP3 filenames first
+in sorted order and matches each numeric ID to `<number>_arabic.srt` (so `080.mp3` matches
+`80_arabic.srt`). Select **Start Bulk Sync** to process each pair in sequence. Corrected
+Arabic SRT files are written directly to the MP3 folder, retaining the matched Arabic SRT
+filename (for example, `80_arabic.srt`). Notices about SRT files without a matching MP3 are
+hidden in the web interface. These paths are local to the computer running the web server.
+
 ---
 
 ## 💻 Command Line Interface (CLI)
@@ -77,19 +86,26 @@ For batch scripts or headless automated pipelines:
 # Basic synchronization (preserves original SRT lines)
 python cli.py --audio recitation.mp3 --srt original.srt --output corrected.srt
 
+# Bulk synchronize numbered MP3 files against matching *_arabic.srt files
+python cli.py --audio-dir "C:\Quran\mp3" --srt-dir "C:\Quran\srt" --model small
+
 # Word-by-word karaoke synchronization for CapCut
-python cli.py -a recitation.mp3 -s original.srt -o word_synced.srt -m word --words-per-sub 1
+python cli.py -a recitation.mp3 -s original.srt -o word_corrected.srt -m word --words-per-sub 1
 
 # Using Whisper Small model with 50ms pre-roll and 100ms post-roll padding
 python cli.py -a audio.mp3 -s sub.srt --model small --start-pad 50 --end-pad 100 --offset 0
 ```
 
+Bulk mode scans MP3 files in sorted filename order, then finds each matching Arabic SRT by number (for example, `080.mp3` with `80_arabic.srt`). It scans only the two selected directories (not subdirectories) and ignores SRT files without the `_arabic.srt` suffix. Corrected files are written to a `corrected` folder inside the SRT directory, retaining each SRT filename and appending `_corrected` (for example, `80_arabic_corrected.srt`). Missing or ambiguous pairs are reported, while other matched files continue processing.
+
 ### CLI Arguments
 | Flag | Description | Default |
 | :--- | :--- | :--- |
-| `-a`, `--audio` | Path to audio file (MP3, WAV, M4A, etc.) | *Required* |
-| `-s`, `--srt` | Path to Arabic SRT file | *Required* |
-| `-o`, `--output` | Path to output synchronized SRT | `[srt]_synced.srt` |
+| `-a`, `--audio` | Path to audio file (MP3, WAV, M4A, etc.) for single-file mode | Required in single-file mode |
+| `-s`, `--srt` | Path to Arabic SRT file for single-file mode | Required in single-file mode |
+| `--audio-dir` | Directory of numbered MP3 files for bulk processing | — |
+| `--srt-dir` | Directory of numbered `*_arabic.srt` files for bulk processing | — |
+| `-o`, `--output` | Path to output synchronized SRT | `[original-name]_corrected.srt` |
 | `-m`, `--mode` | `preserve`, `word`, or `verse` | `preserve` |
 | `-w`, `--words-per-sub` | Words per subtitle in `word` mode | `1` |
 | `--model` | Whisper model (`tiny`, `base`, `small`, `medium`) | `small` |
@@ -132,7 +148,7 @@ quran-srt-sync/
 1. **Importing the SRT into CapCut**:
    - Open your CapCut project.
    - Go to **Text** &rarr; **Local Captions** (or **Subtitles**) &rarr; **Import**.
-   - Select the generated `_synced.srt` file.
+   - Select the generated `_corrected.srt` file.
    - CapCut automatically places each caption at the exact recitation timecode!
 2. **Word-by-Word Animation**:
    - Export with `--mode word`.

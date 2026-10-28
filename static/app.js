@@ -70,6 +70,20 @@ const btnDownloadSRT = document.getElementById('btnDownloadSRT');
 const btnCopySRT = document.getElementById('btnCopySRT');
 const subtitlesList = document.getElementById('subtitlesList');
 const alignmentWarning = document.getElementById('alignmentWarning');
+const bulkAudioDir = document.getElementById('bulkAudioDir');
+const bulkSrtDir = document.getElementById('bulkSrtDir');
+const btnBulkScan = document.getElementById('btnBulkScan');
+const btnBulkStart = document.getElementById('btnBulkStart');
+const bulkStatus = document.getElementById('bulkStatus');
+const bulkProgress = document.getElementById('bulkProgress');
+const bulkProgressText = document.getElementById('bulkProgressText');
+const bulkProgressCount = document.getElementById('bulkProgressCount');
+const bulkProgressBar = document.getElementById('bulkProgressBar');
+const bulkMatchesPanel = document.getElementById('bulkMatchesPanel');
+const bulkMatchesList = document.getElementById('bulkMatchesList');
+const bulkIssues = document.getElementById('bulkIssues');
+let bulkPairs = [];
+let bulkRows = [];
 
 
 // =========================================================================
@@ -161,6 +175,177 @@ globalOffset.addEventListener('input', () => {
   globalOffsetVal.textContent = `${v > 0 ? '+' : ''}${v} ms`;
 });
 minDur.addEventListener('input', () => minDurVal.textContent = `${minDur.value} ms`);
+
+
+// =========================================================================
+// Bulk Synchronization
+// =========================================================================
+
+function setBulkButtonEnabled(button, enabled) {
+  button.disabled = !enabled;
+  button.classList.toggle('bg-brand-600', enabled);
+  button.classList.toggle('hover:bg-brand-500', enabled);
+  button.classList.toggle('text-white', enabled);
+  button.classList.toggle('shadow-lg', enabled);
+  button.classList.toggle('bg-slate-800', !enabled);
+  button.classList.toggle('text-slate-500', !enabled);
+  button.classList.toggle('cursor-not-allowed', !enabled);
+}
+
+function renderBulkIssues(issues) {
+  bulkIssues.replaceChildren();
+  issues.forEach((issue) => {
+    const item = document.createElement('li');
+    item.textContent = issue;
+    bulkIssues.appendChild(item);
+  });
+  bulkIssues.classList.toggle('hidden', issues.length === 0);
+}
+
+btnBulkScan.addEventListener('click', async () => {
+  const audioDir = bulkAudioDir.value.trim();
+  const srtDir = bulkSrtDir.value.trim();
+  if (!audioDir || !srtDir) {
+    bulkStatus.textContent = 'Enter both folder paths before scanning.';
+    return;
+  }
+
+  btnBulkScan.disabled = true;
+  bulkAudioDir.disabled = true;
+  bulkSrtDir.disabled = true;
+  setBulkButtonEnabled(btnBulkStart, false);
+  bulkStatus.textContent = 'Scanning MP3 files and matching Arabic SRTs...';
+  bulkProgress.classList.add('hidden');
+  bulkMatchesPanel.classList.add('hidden');
+  renderBulkIssues([]);
+  bulkMatchesList.replaceChildren();
+  bulkPairs = [];
+  bulkRows = [];
+
+  try {
+    const response = await fetch('/api/bulk/pairs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ audio_dir: audioDir, srt_dir: srtDir })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'Could not scan folders.');
+
+    bulkPairs = data.matches;
+    const visibleIssues = (data.issues || []).filter(
+      (issue) => !/^No matching MP3 files? found for /i.test(issue)
+    );
+    renderBulkIssues(visibleIssues);
+    bulkPairs.forEach((pair) => {
+      const row = document.createElement('tr');
+      const audioCell = document.createElement('td');
+      const srtCell = document.createElement('td');
+      const resultCell = document.createElement('td');
+      audioCell.className = 'px-3 py-2 text-slate-200 font-mono';
+      srtCell.className = 'px-3 py-2 text-slate-300 font-mono';
+      resultCell.className = 'px-3 py-2 text-slate-400';
+      audioCell.textContent = pair.audio_filename;
+      srtCell.textContent = pair.srt_filename;
+      resultCell.textContent = 'Waiting';
+      row.append(audioCell, srtCell, resultCell);
+      bulkMatchesList.appendChild(row);
+      bulkRows.push(resultCell);
+    });
+
+    bulkMatchesPanel.classList.toggle('hidden', bulkPairs.length === 0);
+    bulkStatus.textContent = bulkPairs.length
+      ? `${bulkPairs.length} pair(s) ready. Output folder: ${data.output_dir}`
+      : 'No matching audio/SRT pairs found.';
+    setBulkButtonEnabled(btnBulkStart, bulkPairs.length > 0);
+  } catch (error) {
+    bulkStatus.textContent = `Folder scan failed: ${error.message}`;
+  } finally {
+    btnBulkScan.disabled = false;
+    bulkAudioDir.disabled = false;
+    bulkSrtDir.disabled = false;
+  }
+});
+
+btnBulkStart.addEventListener('click', async () => {
+  if (!bulkPairs.length) return;
+
+  const audioDir = bulkAudioDir.value.trim();
+  const srtDir = bulkSrtDir.value.trim();
+  setBulkButtonEnabled(btnBulkStart, false);
+  btnBulkScan.disabled = true;
+  bulkAudioDir.disabled = true;
+  bulkSrtDir.disabled = true;
+  bulkProgress.classList.remove('hidden');
+  bulkProgressBar.style.width = '0%';
+  bulkProgressCount.textContent = `0 / ${bulkPairs.length}`;
+  let succeeded = 0;
+  let failed = 0;
+
+  for (let index = 0; index < bulkPairs.length; index += 1) {
+    const pair = bulkPairs[index];
+    bulkProgressText.textContent = `Processing ${pair.audio_filename} with ${pair.srt_filename}`;
+    bulkRows[index].textContent = 'Synchronizing...';
+    try {
+      const response = await fetch('/api/bulk/synchronize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio_dir: audioDir,
+          srt_dir: srtDir,
+          audio_filename: pair.audio_filename,
+          srt_filename: pair.srt_filename,
+          mode: state.mode,
+          words_per_sub: parseInt(wordsPerSub.value) || 1,
+          whisper_model: whisperModel.value,
+          global_offset_ms: parseFloat(globalOffset.value),
+          start_padding_ms: parseFloat(startPad.value),
+          end_padding_ms: parseFloat(endPad.value),
+          min_duration_ms: parseFloat(minDur.value),
+          prevent_overlaps: preventOverlaps.checked,
+          repetition_mode: repetitionMode ? repetitionMode.value : 'encompass'
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || 'Synchronization failed.');
+
+      succeeded += 1;
+      bulkRows[index].textContent = data.stats.alignment_warning
+        ? `Saved: ${data.output_path} — ${data.stats.alignment_warning}`
+        : `Saved: ${data.output_path}`;
+      bulkRows[index].classList.remove('text-slate-400');
+      bulkRows[index].classList.add(data.stats.alignment_warning ? 'text-amber-300' : 'text-emerald-400');
+    } catch (error) {
+      failed += 1;
+      bulkRows[index].textContent = `Failed: ${error.message}`;
+      bulkRows[index].classList.remove('text-slate-400');
+      bulkRows[index].classList.add('text-red-400');
+    }
+
+    const completed = index + 1;
+    const percent = Math.round((completed / bulkPairs.length) * 100);
+    bulkProgressBar.style.width = `${percent}%`;
+    bulkProgressCount.textContent = `${completed} / ${bulkPairs.length}`;
+  }
+
+  bulkProgressText.textContent = `Finished: ${succeeded} succeeded, ${failed} failed.`;
+  bulkStatus.textContent = `Bulk synchronization complete. Check each result and review any low-confidence warnings.`;
+  btnBulkScan.disabled = false;
+  bulkAudioDir.disabled = false;
+  bulkSrtDir.disabled = false;
+});
+
+[bulkAudioDir, bulkSrtDir].forEach((input) => {
+  input.addEventListener('input', () => {
+    bulkPairs = [];
+    bulkRows = [];
+    bulkMatchesList.replaceChildren();
+    bulkMatchesPanel.classList.add('hidden');
+    renderBulkIssues([]);
+    bulkProgress.classList.add('hidden');
+    setBulkButtonEnabled(btnBulkStart, false);
+    bulkStatus.textContent = 'Folder paths changed. Find matching files again.';
+  });
+});
 
 
 // =========================================================================

@@ -6,6 +6,7 @@ Automated Quran subtitle synchronization for CapCut and video editing.
 import os
 import sys
 import argparse
+from pathlib import Path
 
 # Enable UTF-8 console output for Windows terminals
 if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
@@ -18,8 +19,9 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
 # Ensure local core imports work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from core.srt_parser import read_srt_file, write_srt_file, sec_to_time_str
+from core.srt_parser import read_srt_file, write_srt_file
 from core.aligner import QuranAligner
+from core.bulk import pair_bulk_files
 from core.quran_db import detect_surah_from_text
 
 
@@ -30,12 +32,81 @@ def print_progress(step, total, msg):
     print(f"[{bar}] Step {step}/{total}: {msg}")
 
 
+def run_bulk(args) -> int:
+    try:
+        pairing = pair_bulk_files(args.audio_dir, args.srt_dir)
+    except (NotADirectoryError, OSError) as error:
+        print(f"Bulk input error: {error}", file=sys.stderr)
+        return 1
+
+    for error in pairing.errors:
+        print(f"Bulk input warning: {error}", file=sys.stderr)
+    if not pairing.matches:
+        print("No matching audio/SRT pairs found.", file=sys.stderr)
+        return 1
+
+    corrected_dir = Path(args.srt_dir).resolve() / "corrected"
+    try:
+        corrected_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        print(f"Could not create corrected output directory: {error}", file=sys.stderr)
+        return 1
+
+    succeeded = 0
+    failed = 0
+    for audio_path, srt_path in pairing.matches:
+        out_path = corrected_dir / f"{srt_path.stem}_corrected.srt"
+        print(f"\nProcessing {audio_path.name} with {srt_path.name}")
+        try:
+            entries = read_srt_file(str(srt_path))
+            if not entries:
+                raise ValueError(f"No valid subtitle entries found in {srt_path.name}")
+
+            aligner = QuranAligner(
+                whisper_model_name=args.model,
+                progress_callback=print_progress
+            )
+            result = aligner.synchronize(
+                audio_path=str(audio_path),
+                srt_entries=entries,
+                mode=args.mode,
+                words_per_sub=args.words_per_sub,
+                global_offset_ms=args.offset,
+                start_padding_ms=args.start_pad,
+                end_padding_ms=args.end_pad,
+                min_duration_ms=args.min_dur,
+                prevent_overlaps=not args.allow_overlaps,
+                repetition_mode=args.repeat_mode
+            )
+            write_srt_file(str(out_path), result['synced_entries'])
+            print(f"Corrected SRT saved: {out_path}")
+            if result['stats'].get('alignment_warning'):
+                print(f"WARNING: {result['stats']['alignment_warning']}")
+                print(
+                    "Review subtitle(s): "
+                    + ", ".join(map(str, result['stats']['low_confidence_subtitles']))
+                )
+            succeeded += 1
+        except Exception as error:
+            print(f"Failed {srt_path.name}: {error}", file=sys.stderr)
+            failed += 1
+
+    print(
+        f"\nBulk processing complete: {succeeded} succeeded, {failed} failed; "
+        f"{len(pairing.errors)} pairing issue(s)."
+    )
+    print(f"Corrected SRT files: {corrected_dir}")
+    return 1 if failed or pairing.errors else 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Quran SRT Sync: Automatically synchronize Quran subtitles with recitation audio for CapCut."
     )
-    parser.add_argument("-a", "--audio", required=True, help="Path to input audio file (MP3, WAV, M4A, etc.)")
-    parser.add_argument("-s", "--srt", required=True, help="Path to input Arabic SRT subtitle file")
+    parser.add_argument("-a", "--audio", help="Path to input audio file (MP3, WAV, M4A, etc.)")
+    parser.add_argument("-s", "--srt", help="Path to input Arabic SRT subtitle file")
+    parser.add_argument("--audio-dir", help="Directory containing numbered MP3 files for bulk processing")
+    parser.add_argument("--srt-dir", help="Directory containing numbered *_arabic.srt files for bulk processing")
     parser.add_argument("-o", "--output", default=None, help="Path to output synchronized SRT file")
     parser.add_argument(
         "-m", "--mode",
@@ -73,6 +144,17 @@ def main():
 
     args = parser.parse_args()
 
+    bulk_requested = args.audio_dir is not None or args.srt_dir is not None
+    if bulk_requested:
+        if not args.audio_dir or not args.srt_dir or args.audio or args.srt:
+            parser.error("Bulk processing requires both --audio-dir and --srt-dir, not --audio or --srt.")
+        if args.output:
+            parser.error("--output cannot be used in bulk mode; results go into the SRT directory's corrected folder.")
+        return run_bulk(args)
+
+    if not args.audio or not args.srt:
+        parser.error("Provide both --audio and --srt, or use both --audio-dir and --srt-dir.")
+
     audio_path = os.path.abspath(args.audio)
     srt_path = os.path.abspath(args.srt)
 
@@ -89,7 +171,7 @@ def main():
         out_path = os.path.abspath(args.output)
     else:
         base, _ = os.path.splitext(srt_path)
-        out_path = f"{base}_synced.srt"
+        out_path = f"{base}_corrected.srt"
 
     print("=================================================================")
     print("                QURAN SRT SYNC FOR CAPCUT                        ")
@@ -171,7 +253,8 @@ def main():
         if len(snippet) > 40:
             snippet = snippet[:40] + "..."
         print(f" #{item['index']:02d} [Orig: {orig}] => [Sync: {sync}] (Shift: {shift:+.3f}s) | {snippet}")
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

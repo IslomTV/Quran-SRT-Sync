@@ -21,6 +21,7 @@ if CURRENT_DIR not in sys.path:
 
 from core.srt_parser import read_srt_file, write_srt_file, parse_srt_content, generate_srt_string, sec_to_time_str
 from core.aligner import QuranAligner
+from core.bulk import pair_bulk_files
 from core.quran_db import detect_surah_from_text
 from core.audio import load_and_resample_audio, compute_energy_envelope
 
@@ -219,6 +220,93 @@ class SyncRequest(BaseModel):
     repetition_mode: str = "encompass"   # 'encompass' (default), 'duplicate', 'off'
 
 
+class BulkDirectoriesRequest(BaseModel):
+    audio_dir: str
+    srt_dir: str
+
+
+class BulkPairSyncRequest(SyncRequest):
+    session_id: str | None = None
+    audio_dir: str
+    srt_dir: str
+    audio_filename: str
+    srt_filename: str
+
+
+@app.post("/api/bulk/pairs")
+def preview_bulk_pairs(req: BulkDirectoriesRequest):
+    """Previews numbered MP3 and *_arabic.srt pairs from local directories."""
+    try:
+        pairing = pair_bulk_files(req.audio_dir, req.srt_dir)
+    except (NotADirectoryError, OSError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return {
+        "matches": [
+            {"audio_filename": audio.name, "srt_filename": subtitle.name}
+            for audio, subtitle in pairing.matches
+        ],
+        "issues": pairing.errors,
+        "output_dir": os.path.abspath(req.audio_dir)
+    }
+
+
+@app.post("/api/bulk/synchronize")
+def synchronize_bulk_pair(req: BulkPairSyncRequest):
+    """Synchronizes one verified pair and writes the Arabic SRT to the audio directory."""
+    try:
+        pairing = pair_bulk_files(req.audio_dir, req.srt_dir)
+    except (NotADirectoryError, OSError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    pair = next(
+        (
+            (audio, subtitle)
+            for audio, subtitle in pairing.matches
+            if audio.name == req.audio_filename and subtitle.name == req.srt_filename
+        ),
+        None
+    )
+    if pair is None:
+        raise HTTPException(status_code=400, detail="The selected audio and SRT are not a valid numbered pair.")
+
+    audio_path, srt_path = pair
+    try:
+        entries = read_srt_file(str(srt_path))
+        if not entries:
+            raise ValueError(f"No valid subtitle entries found in {srt_path.name}")
+        result = QuranAligner(whisper_model_name=req.whisper_model).synchronize(
+            audio_path=str(audio_path),
+            srt_entries=entries,
+            mode=req.mode,
+            words_per_sub=req.words_per_sub,
+            global_offset_ms=req.global_offset_ms,
+            start_padding_ms=req.start_padding_ms,
+            end_padding_ms=req.end_padding_ms,
+            min_duration_ms=req.min_duration_ms,
+            prevent_overlaps=req.prevent_overlaps,
+            repetition_mode=req.repetition_mode
+        )
+        output_dir = os.path.abspath(req.audio_dir)
+        output_filename = f"{srt_path.stem}.srt"
+        output_path = os.path.join(output_dir, output_filename)
+        write_srt_file(output_path, result['synced_entries'])
+    except Exception as error:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to synchronize {srt_path.name}: {error}"
+        ) from error
+
+    return {
+        "status": "success",
+        "audio_filename": audio_path.name,
+        "srt_filename": srt_path.name,
+        "output_filename": output_filename,
+        "output_path": output_path,
+        "stats": result['stats']
+    }
+
+
 @app.post("/api/synchronize")
 async def synchronize_subtitles(req: SyncRequest):
     """Runs forced alignment and generates corrected timestamps."""
@@ -253,7 +341,7 @@ async def synchronize_subtitles(req: SyncRequest):
     # Generate output SRT file
     orig_name = session.get('orig_srt_filename', 'quran_subtitles.srt')
     base_name, _ = os.path.splitext(orig_name)
-    out_filename = f"{base_name}_synced.srt"
+    out_filename = f"{base_name}_corrected.srt"
     out_path = os.path.join(UPLOAD_DIR, f"{req.session_id}_{out_filename}")
     write_srt_file(out_path, synced_entries)
 
