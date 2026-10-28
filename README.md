@@ -1,0 +1,136 @@
+# Quran SRT Sync: Audio & Subtitle Synchronizer for CapCut
+
+**Quran SRT Sync** is a specialized audio-processing and Arabic speech-alignment application that automatically synchronizes Quran subtitles with Quran recitation audio.
+
+It solves the common problem where imported SRT subtitles lag, lead, or drift out of sync in **CapCut**, **Premiere Pro**, or **DaVinci Resolve** due to reciter pauses (waqf), tajweed elongations (madd 2–6 harakat), breath intervals, and variable recitation speeds.
+
+---
+
+## 🌟 Key Features
+
+### 1. Authoritative Arabic Text Preservation
+- Reads the supplied Arabic SRT file and **preserves the exact original Quranic text, diacritics (tashkeel), verse order, and formatting verbatim**.
+- **Never silently replaces** original Quranic text with speech-to-text predictions.
+- Text normalization (removing harakat, unifying alifs, handling phonetic shifts) is used **strictly for acoustic matching and alignment**.
+
+### 2. Multi-Pass Hybrid Alignment Pipeline
+- **Acoustic Energy & VAD**: Computes RMS energy envelope to detect speech bursts, voice onset/offset decays, and breath silences (Waqf).
+- **Phonetic Speech Recognition**: Extracts acoustic word timestamps using OpenAI Whisper (`tiny`, `base`, `small`).
+- **Dynamic Sequence Alignment**: Needleman-Wunsch / sequence alignment with custom Quranic phonetic confusion matrix to map authoritative words to spoken audio segments.
+- **Acoustic Boundary Refinement**: Snaps start/end timestamps to true vocal energy onsets and offsets.
+- **CapCut Timing Optimization**: Applies pre-roll padding, post-roll linger, minimum subtitle duration, and contiguous timing so adjacent captions have no gaps or overlaps.
+
+### 3. Multiple Synchronization Modes
+1. **Preserve Subtitle Segmentation (Default)**:
+   - Keeps the exact number, order, and lines of the original SRT.
+   - Accurately adjusts only start and end timestamps based on real recitation timing.
+2. **Word-Level Synchronization**:
+   - Aligns individual Arabic words with spoken timings.
+   - Generates one subtitle per word (or configurable groups of words: 1, 2, 3 words).
+   - Designed specifically for **CapCut's trending word-by-word animated / karaoke subtitle presets**.
+3. **Verse-Level Synchronization**:
+   - Aligns entries to recitation verse segments and waqf pauses.
+
+### 4. Reciter Verse Repetition Handling
+- Reciters frequently repeat an emotional verse or part of an ayah twice (e.g. during Taraweeh or Mujawwad recitation).
+- **Default Behavior (`encompass`)**: When a repetition is detected in the audio, the application **keeps that single verse subtitle on screen for the full duration of both readings** (`start = rendition_1.start`, `end = rendition_2.end`). The subtitle does not disappear or flash during the inter-repetition breath pause.
+- Also supports `duplicate` mode (creates separate subtitle entries for each rendition) or `off`.
+
+### 5. Modern Interactive Web Interface & Audio Player
+- **Dual Dropzone**: Drag-and-drop MP3, WAV, or M4A audio files and Arabic SRT files.
+- **Live Karaoke Teleprompter**: The active subtitle glows emerald and auto-scrolls in real-time as the recitation plays.
+- **Click-to-Seek**: Click any subtitle line to instantly jump playback to that timestamp.
+- **Side-by-Side Comparison**: Displays original timing, corrected timing, shift delta ($\Delta t$), and authoritative text.
+- **Inline Time Adjustments**: Micro-adjust start/end times right in the table before exporting.
+- **One-Click Sample Loader**: Instant demo using Surah Al-Fatihah recited by Mishari Rashid Al-Afasy.
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Python 3.10+ (Tested and verified on Python 3.13)
+- Installed dependencies:
+  ```bash
+  pip install torch soundfile scipy numpy openai-whisper fastapi uvicorn python-multipart
+  ```
+
+### Quick Launch (Web Interface)
+Double-click `run_app.bat` or run:
+```bash
+python run_app.py
+```
+This automatically starts the server and opens your browser at:
+`http://127.0.0.1:8000`
+
+---
+
+## 💻 Command Line Interface (CLI)
+
+For batch scripts or headless automated pipelines:
+
+```bash
+# Basic synchronization (preserves original SRT lines)
+python cli.py --audio recitation.mp3 --srt original.srt --output corrected.srt
+
+# Word-by-word karaoke synchronization for CapCut
+python cli.py -a recitation.mp3 -s original.srt -o word_synced.srt -m word --words-per-sub 1
+
+# Using Whisper Small model with 50ms pre-roll and 100ms post-roll padding
+python cli.py -a audio.mp3 -s sub.srt --model small --start-pad 50 --end-pad 100 --offset 0
+```
+
+### CLI Arguments
+| Flag | Description | Default |
+| :--- | :--- | :--- |
+| `-a`, `--audio` | Path to audio file (MP3, WAV, M4A, etc.) | *Required* |
+| `-s`, `--srt` | Path to Arabic SRT file | *Required* |
+| `-o`, `--output` | Path to output synchronized SRT | `[srt]_synced.srt` |
+| `-m`, `--mode` | `preserve`, `word`, or `verse` | `preserve` |
+| `-w`, `--words-per-sub` | Words per subtitle in `word` mode | `1` |
+| `--model` | Whisper model (`tiny`, `base`, `small`) | `small` |
+| `--offset` | Global timing offset in milliseconds | `0.0` |
+| `--start-pad` | Milliseconds to display before voice onset | `60.0` |
+| `--end-pad` | Milliseconds to linger after voice offset | `120.0` |
+| `--min-dur` | Minimum duration per subtitle in ms | `600.0` |
+| `--allow-overlaps`| Disable contiguous timing; allow gaps and overlapping timestamps | `False` |
+
+---
+
+## 📂 Project Architecture
+
+```
+quran-srt-sync/
+├── core/
+│   ├── normalizer.py     # Quranic text normalization & phonetic similarity
+│   ├── audio.py          # SoundFile decoding, polyphase resampling, RMS VAD
+│   ├── srt_parser.py     # Robust SRT reader/writer with UTF-8 BOM encoding
+│   ├── aligner.py        # Multi-pass forced alignment & CapCut post-processing
+│   └── quran_db.py       # Surah metadata & text-based Surah identification
+├── static/
+│   ├── index.html        # Modern Tailwind dark-mode UI with Amiri typography
+│   └── app.js            # Audio player, waveform visualizer & karaoke teleprompter
+├── samples/
+│   ├── al_fatiha.mp3     # Sample recitation audio (Mishari Rashid Al-Afasy)
+│   └── al_fatiha_original.srt # Sample original subtitle with unaligned timings
+├── tests/
+│   └── test_aligner.py   # Unit test suite
+├── app.py                # FastAPI web server
+├── cli.py                # Command line interface
+├── run_app.py            # Browser launcher
+└── run_app.bat           # Windows 1-click launcher
+```
+
+---
+
+## 🎬 CapCut Import Tips
+
+1. **Importing the SRT into CapCut**:
+   - Open your CapCut project.
+   - Go to **Text** &rarr; **Local Captions** (or **Subtitles**) &rarr; **Import**.
+   - Select the generated `_synced.srt` file.
+   - CapCut automatically places each caption at the exact recitation timecode!
+2. **Word-by-Word Animation**:
+   - Export with `--mode word`.
+   - In CapCut, apply text animation presets (e.g., Pop-in, Bounce, or Karaoke highlight).
+   - Because each word has its exact spoken duration, the animation synchronizes with each syllable spoken by the reciter!

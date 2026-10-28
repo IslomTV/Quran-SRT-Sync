@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quran SRT Sync - Audio & Subtitle Synchronizer for CapCut</title>
+  <!-- Google Fonts for Arabic Typography & Modern UI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=Scheherazade+New:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            quran: ['Amiri', 'Scheherazade New', 'serif']
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .quran-text {
+      font-family: 'Amiri', 'Scheherazade New', serif;
+      direction: rtl;
+      line-height: 2.2;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #1e293b;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #10b981;
+    }
+    @keyframes pulse-emerald {
+      0%, 100% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.8); }
+    }
+    .active-karaoke {
+      background: rgba(16, 185, 129, 0.15) !important;
+      border-color: #10b981 !important;
+      animation: pulse-emerald 2s infinite;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans selection:bg-brand-500 selection:text-white">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-emerald-400 flex items-center justify-center shadow-lg shadow-brand-500/20 text-white font-bold text-xl">
+          ق
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+            Quran SRT Sync
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-brand-900/60 border border-brand-500/30 text-brand-400">CapCut Ready</span>
+          </h1>
+          <p class="text-xs text-slate-400">Accurate Quran Recitation Audio & Subtitle Synchronizer</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btnLoadSample" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition flex items-center gap-1.5 shadow-sm">
+          <span>⚡</span> Load Sample (Al-Fatihah)
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Upload & Quick Overview Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Upload Section (7 Cols) -->
+      <div class="lg:col-span-7 space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-brand-500"></span> 1. Upload Recitation Audio & Arabic SRT
+          </h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Audio Dropzone -->
+            <div id="audioDropzone" class="border-2 border-dashed border-slate-700 hover:border-brand-500/70 bg-slate-800/40 hover:bg-slate-800/80 rounded-xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center min-h-[140px] group">
+              <input type="file" id="audioInput" accept=".mp3,.wav,.m4a,.flac,.ogg" class="hidden">
+              <div class="w-10 h-10 rounded-full bg-slate-800 group-hover:bg-brand-900/60 flex items-center justify-center text-slate-400 group-hover:text-brand-400 mb-2 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+              </div>
+              <p id="audioFileName" class="text-xs font-medium text-slate-300">Choose Audio (MP3 / WAV / M4A)</p>
+              <p class="text-[11px] text-slate-500 mt-0.5">Drag & drop or click</p>
+              <span id="audioBadge" class="hidden mt-2 text-[10px] px-2 py-0.5 rounded bg-brand-900/80 text-brand-300 font-mono"></span>
+            </div>
+
+            <!-- SRT Dropzone -->
+            <div id="srtDropzone" class="border-2 border-dashed border-slate-700 hover:border-brand-500/70 bg-slate-800/40 hover:bg-slate-800/80 rounded-xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center min-h-[140px] group">
+              <input type="file" id="srtInput" accept=".srt" class="hidden">
+              <div class="w-10 h-10 rounded-full bg-slate-800 group-hover:bg-brand-900/60 flex items-center justify-center text-slate-400 group-hover:text-brand-400 mb-2 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>
+              </div>
+              <p id="srtFileName" class="text-xs font-medium text-slate-300">Choose Arabic SRT Subtitles</p>
+              <p class="text-[11px] text-slate-500 mt-0.5">Original Quranic text</p>
+              <span id="srtBadge" class="hidden mt-2 text-[10px] px-2 py-0.5 rounded bg-brand-900/80 text-brand-300 font-mono"></span>
+            </div>
+          </div>
+
+          <!-- File Upload Action Button -->
+          <div class="mt-4 flex items-center justify-between pt-3 border-t border-slate-800/80">
+            <span id="uploadStatusText" class="text-xs text-slate-400">Upload both files to enable synchronization.</span>
+            <button id="btnUploadFiles" disabled class="px-4 py-2 rounded-xl bg-slate-800 text-slate-500 font-medium text-xs transition cursor-not-allowed flex items-center gap-2">
+              <span>Upload & Parse</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Audio Player & Waveform preview -->
+        <div id="playerCard" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-300">Audio Preview & Playback</span>
+            </div>
+            <div id="surahBadgeContainer" class="hidden">
+              <span id="surahBadge" class="text-xs px-2.5 py-1 rounded-full bg-brand-900/80 text-brand-300 border border-brand-500/30 font-medium"></span>
+            </div>
+          </div>
+
+          <!-- HTML5 Audio -->
+          <audio id="audioElement" class="w-full h-10 rounded-lg outline-none" controls></audio>
+
+          <!-- Waveform Progress Track -->
+          <div id="waveformContainer" class="h-10 bg-slate-950 rounded-lg p-1.5 flex items-end gap-[2px] overflow-hidden border border-slate-800/80">
+            <!-- Dynamic Waveform Bars will be injected here -->
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
+            <span id="currentTimeDisplay">00:00.0</span>
+            <span id="totalDurationDisplay">00:00.0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings & Controls (5 Cols) -->
+      <div class="lg:col-span-5 space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-brand-500"></span> 2. Synchronization Settings
+          </h2>
+
+          <!-- Mode Selector -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-medium text-slate-300">Synchronization Mode</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button type="button" data-mode="preserve" class="mode-btn active px-3 py-2 text-xs font-medium rounded-xl border border-brand-500 bg-brand-900/40 text-brand-300 text-center transition">
+                Preserve Lines
+                <span class="block text-[10px] text-slate-400 font-normal">Original order</span>
+              </button>
+              <button type="button" data-mode="word" class="mode-btn px-3 py-2 text-xs font-medium rounded-xl border border-slate-700 bg-slate-800/40 text-slate-300 text-center hover:bg-slate-800 transition">
+                Word-by-Word
+                <span class="block text-[10px] text-slate-400 font-normal">CapCut animated</span>
+              </button>
+              <button type="button" data-mode="verse" class="mode-btn px-3 py-2 text-xs font-medium rounded-xl border border-slate-700 bg-slate-800/40 text-slate-300 text-center hover:bg-slate-800 transition">
+                Verse Segments
+                <span class="block text-[10px] text-slate-400 font-normal">Ayah boundary</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Words per subtitle (conditional for word mode) -->
+          <div id="wordsPerSubContainer" class="hidden space-y-1">
+            <label class="text-xs font-medium text-slate-300">Words Per Subtitle</label>
+            <select id="wordsPerSub" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+              <option value="1">1 Word (Individual Karaoke Syllable)</option>
+              <option value="2">2 Words per subtitle</option>
+              <option value="3">3 Words per subtitle</option>
+            </select>
+          </div>
+
+          <!-- Whisper Model -->
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-300">Speech Alignment Model</label>
+            <select id="whisperModel" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+              <option value="small" selected>Whisper Small (Recommended - High Precision)</option>
+              <option value="base">Whisper Base (Faster - Lower Resource)</option>
+              <option value="tiny">Whisper Tiny (Ultra Fast - Lower Resource)</option>
+            </select>
+          </div>
+
+          <!-- Timing Sliders & Offsets -->
+          <div class="grid grid-cols-2 gap-3 pt-2">
+            <div>
+              <label class="text-[11px] font-medium text-slate-300 flex justify-between">
+                <span>Start Padding</span>
+                <span id="startPadVal" class="text-brand-400 font-mono">60 ms</span>
+              </label>
+              <input type="range" id="startPad" min="0" max="300" step="10" value="60" class="w-full accent-brand-500 mt-1">
+            </div>
+            <div>
+              <label class="text-[11px] font-medium text-slate-300 flex justify-between">
+                <span>End Padding</span>
+                <span id="endPadVal" class="text-brand-400 font-mono">120 ms</span>
+              </label>
+              <input type="range" id="endPad" min="0" max="400" step="10" value="120" class="w-full accent-brand-500 mt-1">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-[11px] font-medium text-slate-300 flex justify-between">
+                <span>Global Offset</span>
+                <span id="globalOffsetVal" class="text-brand-400 font-mono">0 ms</span>
+              </label>
+              <input type="range" id="globalOffset" min="-500" max="500" step="25" value="0" class="w-full accent-brand-500 mt-1">
+            </div>
+            <div>
+              <label class="text-[11px] font-medium text-slate-300 flex justify-between">
+                <span>Min Duration</span>
+                <span id="minDurVal" class="text-brand-400 font-mono">600 ms</span>
+              </label>
+              <input type="range" id="minDur" min="300" max="1500" step="50" value="600" class="w-full accent-brand-500 mt-1">
+            </div>
+          </div>
+
+          <!-- Repeated Verse Handling -->
+          <div class="space-y-1">
+            <label class="text-xs font-medium text-slate-300 flex items-center justify-between">
+              <span>Reciter Verse Repetitions</span>
+              <span class="text-[10px] text-brand-400 font-semibold bg-brand-950/80 px-2 py-0.5 rounded border border-brand-500/20">Auto-Detect</span>
+            </label>
+            <select id="repetitionMode" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+              <option value="encompass" selected>Keep timestamp covering repetition (Encompass both recitations)</option>
+              <option value="duplicate">Duplicate subtitle entry for repeated recitation</option>
+              <option value="off">Disabled (Ignore verse repetitions)</option>
+            </select>
+            <p class="text-[10px] text-slate-400">When the reciter repeats the same verse, keeps the subtitle active across both readings.</p>
+          </div>
+
+          <div class="flex items-center gap-2 pt-1">
+            <input type="checkbox" id="preventOverlaps" checked class="rounded border-slate-700 bg-slate-800 text-brand-500 focus:ring-0">
+            <label for="preventOverlaps" class="text-xs text-slate-300">Keep Captions Contiguous (No Gaps or Overlaps)</label>
+          </div>
+
+          <!-- Start Sync Button -->
+          <button id="btnStartSync" disabled class="w-full py-3 px-4 rounded-xl font-semibold text-sm transition shadow-lg flex items-center justify-center gap-2 bg-slate-800 text-slate-500 cursor-not-allowed">
+            <span id="syncIcon">⚡</span>
+            <span id="syncText">Start Audio-to-Text Synchronization</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Status Box (Hidden by default) -->
+    <div id="progressCard" class="hidden bg-slate-900 border border-brand-500/30 rounded-2xl p-5 shadow-2xl space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-brand-400 flex items-center gap-2">
+          <svg class="animate-spin h-4 w-4 text-brand-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+          Synchronization In Progress
+        </h3>
+        <span id="progressPercent" class="text-xs font-mono font-bold text-slate-300">0%</span>
+      </div>
+      <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden">
+        <div id="progressBar" class="bg-gradient-to-r from-brand-600 to-emerald-400 h-2.5 rounded-full transition-all duration-300" style="width: 5%"></div>
+      </div>
+      <p id="progressStatus" class="text-xs text-slate-400">Initializing acoustic engine...</p>
+    </div>
+
+    <!-- Results Section (Hidden until sync completes) -->
+    <div id="resultsCard" class="hidden space-y-6">
+
+      <!-- Metrics Bar -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <p class="text-[11px] text-slate-400 font-medium uppercase">Audio Duration</p>
+          <p id="statDuration" class="text-xl font-bold text-white mt-1">--</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <p class="text-[11px] text-slate-400 font-medium uppercase">Total Subtitles</p>
+          <p id="statSubtitles" class="text-xl font-bold text-brand-400 mt-1">--</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <p class="text-[11px] text-slate-400 font-medium uppercase">Detected Waqf Pauses</p>
+          <p id="statPauses" class="text-xl font-bold text-amber-400 mt-1">--</p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <p class="text-[11px] text-slate-400 font-medium uppercase">Average Shift (Δt)</p>
+          <p id="statShift" class="text-xl font-bold text-emerald-400 mt-1">--</p>
+        </div>
+      </div>
+
+      <!-- Action Bar: Download & Export -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>✅</span> Synchronized Subtitles Ready
+          </h3>
+          <p class="text-xs text-slate-400">Timestamps corrected for CapCut import. Text diacritics preserved verbatim.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="btnCopySRT" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition flex items-center gap-1.5">
+            <span>📋</span> Copy SRT
+          </button>
+          <a id="btnDownloadSRT" href="#" download class="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-lg shadow-brand-500/20 transition flex items-center gap-2">
+            <span>📥</span> Download Corrected SRT
+          </a>
+        </div>
+      </div>
+
+      <!-- Synchronized Subtitles Table / Karaoke Teleprompter -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+        <div class="px-5 py-3.5 bg-slate-800/40 border-b border-slate-800 flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">Synchronized Quran Subtitles (Click row to seek audio)</span>
+          <span class="text-[11px] text-slate-500">Live Karaoke Tracking Active</span>
+        </div>
+        
+        <div class="max-h-[500px] overflow-y-auto custom-scrollbar divide-y divide-slate-800" id="subtitlesList">
+          <!-- Injected Subtitle Rows -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-800/80 bg-slate-900/40 py-4 mt-auto text-center text-xs text-slate-500">
+    <p>Quran SRT Sync &bull; Built with PyTorch, Whisper, SoundFile & FastAPI &bull; Formatted for CapCut Video Production</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
