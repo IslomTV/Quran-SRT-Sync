@@ -1,6 +1,6 @@
 """
 Quran SRT Sync - Command Line Interface (CLI)
-Automated Quran subtitle synchronization for CapCut and video editing.
+Automated Quran subtitle synchronization for video editing.
 """
 
 import os
@@ -101,7 +101,7 @@ def run_bulk(args) -> int:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Quran SRT Sync: Automatically synchronize Quran subtitles with recitation audio for CapCut."
+        description="Quran SRT Sync: Automatically synchronize Quran subtitles with recitation audio for video editing."
     )
     parser.add_argument("-a", "--audio", help="Path to input audio file (MP3, WAV, M4A, etc.)")
     parser.add_argument("-s", "--srt", help="Path to input Arabic SRT subtitle file")

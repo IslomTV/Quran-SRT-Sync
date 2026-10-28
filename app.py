@@ -8,6 +8,7 @@ import sys
 import uuid
 import shutil
 import numpy as np
+from html import escape
 from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -27,7 +28,7 @@ from core.audio import load_and_resample_audio, compute_energy_envelope
 
 app = FastAPI(
     title="Quran SRT Sync",
-    description="Synchronizes Quran subtitles with recitation audio for CapCut",
+    description="Synchronizes Quran subtitles with recitation audio for video editing",
     version="1.0.0"
 )
 
@@ -52,7 +53,17 @@ async def serve_index():
     if not os.path.exists(index_file):
         raise HTTPException(status_code=404, detail="UI index.html not found.")
     with open(index_file, "r", encoding="utf-8") as f:
-        return f.read()
+        content = f.read()
+    default_srt_dir = escape(os.path.join(CURRENT_DIR, "data", "arabic_srt"), quote=True)
+    return content.replace("__DEFAULT_ARABIC_SRT_DIR__", default_srt_dir)
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def serve_favicon():
+    favicon_file = os.path.join(STATIC_DIR, "favicon.svg")
+    if not os.path.exists(favicon_file):
+        raise HTTPException(status_code=404, detail="Favicon not found.")
+    return FileResponse(favicon_file, media_type="image/svg+xml")
 
 
 @app.get("/api/health")
@@ -247,13 +258,13 @@ def preview_bulk_pairs(req: BulkDirectoriesRequest):
             for audio, subtitle in pairing.matches
         ],
         "issues": pairing.errors,
-        "output_dir": os.path.abspath(req.audio_dir)
+        "output_dir": os.path.join(os.path.abspath(req.audio_dir), "srt")
     }
 
 
 @app.post("/api/bulk/synchronize")
 def synchronize_bulk_pair(req: BulkPairSyncRequest):
-    """Synchronizes one verified pair and writes the Arabic SRT to the audio directory."""
+    """Synchronizes one verified pair and writes the Arabic SRT to the audio directory's srt folder."""
     try:
         pairing = pair_bulk_files(req.audio_dir, req.srt_dir)
     except (NotADirectoryError, OSError) as error:
@@ -287,7 +298,8 @@ def synchronize_bulk_pair(req: BulkPairSyncRequest):
             prevent_overlaps=req.prevent_overlaps,
             repetition_mode=req.repetition_mode
         )
-        output_dir = os.path.abspath(req.audio_dir)
+        output_dir = os.path.join(os.path.abspath(req.audio_dir), "srt")
+        os.makedirs(output_dir, exist_ok=True)
         output_filename = f"{srt_path.stem}.srt"
         output_path = os.path.join(output_dir, output_filename)
         write_srt_file(output_path, result['synced_entries'])

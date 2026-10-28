@@ -5,7 +5,7 @@ Synchronizes Arabic Quran subtitle text with recitation audio using a hybrid pip
 2. ASR phonetic word timestamp extraction (Whisper)
 3. Sequence alignment via dynamic programming and Quranic phonetic similarity
 4. Acoustic boundary refinement (speech onset/offset snapping)
-5. CapCut timing optimization (padding, global offset, minimum duration, overlap prevention)
+5. Editor-friendly timing optimization (padding, global offset, minimum duration, overlap prevention)
 """
 
 import difflib
@@ -182,7 +182,7 @@ class QuranAligner:
         srt_entries: list[dict],
         mode: str = 'preserve',              # 'preserve', 'word', 'verse'
         words_per_sub: int = 1,              # For 'word' mode
-        global_offset_ms: float = 0.0,       # +/- ms shift for CapCut
+        global_offset_ms: float = 0.0,       # +/- ms timing adjustment
         start_padding_ms: float = 60.0,      # ms to start before recitation onset
         end_padding_ms: float = 120.0,       # ms to linger after recitation offset
         min_duration_ms: float = 600.0,      # minimum duration per subtitle
@@ -447,9 +447,9 @@ class QuranAligner:
             )
 
         # =====================================================================
-        # Step 6: Acoustic Refinement, Padding & CapCut Post-Processing
+        # Step 6: Acoustic refinement and editor-friendly timing adjustments
         # =====================================================================
-        self._notify(6, TOTAL_STEPS, "Applying acoustic boundary refinement & CapCut timing post-processing...")
+        self._notify(6, TOTAL_STEPS, "Refining acoustic boundaries and applying subtitle timing adjustments...")
 
         global_offset = global_offset_ms / 1000.0
         start_pad = start_padding_ms / 1000.0

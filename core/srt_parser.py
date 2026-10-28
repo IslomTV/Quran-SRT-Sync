@@ -25,7 +25,7 @@ def time_str_to_sec(time_str: str) -> float:
 
 
 def sec_to_time_str(sec: float) -> str:
-    """Converts float seconds to CapCut/standard SRT format 'HH:MM:SS,mmm'."""
+    """Converts float seconds to standard SRT format 'HH:MM:SS,mmm'."""
     sec = max(0.0, float(sec))
     total_ms = int(round(sec * 1000.0))
     
@@ -125,7 +125,7 @@ def read_srt_file(file_path: str) -> list[dict]:
 
 def generate_srt_string(entries: list[dict]) -> str:
     """
-    Serializes subtitle entries to a clean, CapCut-compliant SRT string.
+    Serializes subtitle entries to a clean, standard SRT string.
     Ensures correct 1-based indexing, valid timestamps, and exact Arabic text.
     """
     output_blocks = []
@@ -140,10 +140,9 @@ def generate_srt_string(entries: list[dict]) -> str:
 
 
 def write_srt_file(file_path: str, entries: list[dict]) -> None:
-    """Writes subtitle entries to an SRT file in UTF-8 encoding (with BOM for CapCut Windows)."""
+    """Writes subtitle entries to an SRT file in UTF-8 encoding with a BOM for broad editor compatibility."""
     os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
     content = generate_srt_string(entries)
-    # Using utf-8-sig ensures Windows applications like CapCut properly recognize Arabic characters
+    # UTF-8 with a BOM helps Windows video editors recognize Arabic text.
     with open(file_path, 'w', encoding='utf-8-sig') as f:
         f.write(content)
-

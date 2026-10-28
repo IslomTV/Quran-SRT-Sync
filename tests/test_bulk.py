@@ -49,6 +49,28 @@ class TestBulkProcessing(unittest.TestCase):
             self.assertEqual(pairing.matches, [])
             self.assertTrue(any('same numeric ID 80' in error for error in pairing.errors))
 
+    def test_ignores_non_mp3_files_and_directories_in_audio_folder(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            audio_dir = root / 'audio'
+            srt_dir = root / 'srt'
+            audio_dir.mkdir()
+            srt_dir.mkdir()
+            audio = audio_dir / '080.mp3'
+            audio.touch()
+            (audio_dir / '081.mp3').mkdir()
+            (audio_dir / 'notes.txt').touch()
+            (audio_dir / 'extras').mkdir()
+            subtitle = srt_dir / '80_arabic.srt'
+            subtitle.touch()
+
+            pairing = pair_bulk_files(audio_dir, srt_dir)
+
+            self.assertEqual(pairing.matches, [(audio, subtitle)])
+            self.assertEqual(pairing.unmatched_audio, [])
+            self.assertEqual(pairing.unmatched_srt, [])
+            self.assertEqual(pairing.errors, [])
+
     def test_pair_order_is_driven_by_sorted_mp3_files(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

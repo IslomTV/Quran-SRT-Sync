@@ -1,6 +1,6 @@
 /**
  * Quran SRT Sync - Frontend Application Logic
- * Audio synchronization, waveform generation, karaoke teleprompter, and CapCut export.
+ * Audio synchronization, waveform generation, karaoke teleprompter, and SRT export.
  */
 
 // Application State
@@ -474,7 +474,7 @@ btnStartSync.addEventListener('click', async () => {
       progressPercent.textContent = `${pct}%`;
       if (pct === 40) progressStatus.textContent = "Phonetic ASR recognition & word timing extraction...";
       if (pct === 70) progressStatus.textContent = "Dynamic sequence alignment with Quranic text...";
-      if (pct === 85) progressStatus.textContent = "Refining acoustic boundaries & applying CapCut padding...";
+      if (pct === 85) progressStatus.textContent = "Refining acoustic boundaries & applying subtitle timing adjustments...";
     }
   }, 1000);
 

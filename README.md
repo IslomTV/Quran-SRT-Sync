@@ -1,8 +1,8 @@
-# Quran SRT Sync: Audio & Subtitle Synchronizer for CapCut
+# Quran SRT Sync: Audio & Subtitle Synchronizer for Video Editing
 
 **Quran SRT Sync** is a specialized audio-processing and Arabic speech-alignment application that automatically synchronizes Quran subtitles with Quran recitation audio.
 
-It solves the common problem where imported SRT subtitles lag, lead, or drift out of sync in **CapCut**, **Premiere Pro**, or **DaVinci Resolve** due to reciter pauses (waqf), tajweed elongations (madd 2–6 harakat), breath intervals, and variable recitation speeds.
+It solves the common problem where imported SRT subtitles lag, lead, or drift out of sync in video editing applications due to reciter pauses (waqf), tajweed elongations (madd 2–6 harakat), breath intervals, and variable recitation speeds.
 
 ---
 
@@ -20,7 +20,7 @@ It solves the common problem where imported SRT subtitles lag, lead, or drift ou
 - **Best-effort output**: If all available transcripts still miss speech or subtitle words, produces a draft with a prominent warning and highlights affected lines in the web interface (the CLI reports their line numbers). Unmatched words may have interpolated timings. The downloaded SRT remains standard SRT and does not include warning markers.
 - **Dynamic Sequence Alignment**: Needleman-Wunsch / sequence alignment with custom Quranic phonetic confusion matrix to map authoritative words to spoken audio segments.
 - **Acoustic Boundary Refinement**: Snaps start/end timestamps to true vocal energy onsets and offsets.
-- **CapCut Timing Optimization**: Applies pre-roll padding, post-roll linger, minimum subtitle duration, and contiguous timing so adjacent captions have no gaps or overlaps.
+- **Editor-Friendly Timing**: Applies pre-roll padding, post-roll linger, minimum subtitle duration, and contiguous timing so adjacent captions have no gaps or overlaps.
 
 ### 3. Multiple Synchronization Modes
 1. **Preserve Subtitle Segmentation (Default)**:
@@ -29,7 +29,7 @@ It solves the common problem where imported SRT subtitles lag, lead, or drift ou
 2. **Word-Level Synchronization**:
    - Aligns individual Arabic words with spoken timings.
    - Generates one subtitle per word (or configurable groups of words: 1, 2, 3 words).
-   - Designed specifically for **CapCut's trending word-by-word animated / karaoke subtitle presets**.
+   - Designed for word-by-word animated and karaoke subtitle presets in video editing applications.
 3. **Verse-Level Synchronization**:
    - Aligns entries to recitation verse segments and waqf pauses.
 
@@ -69,12 +69,14 @@ On Windows, the launcher uses the selector event loop to avoid noisy connection-
 tracebacks when the browser closes an audio stream.
 
 For bulk synchronization in the web interface, enter the local MP3 folder and the local
-Arabic SRT folder, then select **Find Matching Files**. The app scans MP3 filenames first
+Arabic SRT folder (pre-filled with `<application-folder>\data\arabic_srt`), then select
+**Find Matching Files**. The app scans MP3 filenames first
 in sorted order and matches each numeric ID to `<number>_arabic.srt` (so `080.mp3` matches
 `80_arabic.srt`). Select **Start Bulk Sync** to process each pair in sequence. Corrected
-Arabic SRT files are written directly to the MP3 folder, retaining the matched Arabic SRT
-filename (for example, `80_arabic.srt`). Notices about SRT files without a matching MP3 are
-hidden in the web interface. These paths are local to the computer running the web server.
+Arabic SRT files are written to an `srt` subfolder inside the MP3 folder, retaining the
+matched Arabic SRT filename (for example, `80_arabic.srt`). Notices about SRT files without
+a matching MP3 are hidden in the web interface. These paths are local to the computer
+running the web server.
 
 ---
 
@@ -89,7 +91,7 @@ python cli.py --audio recitation.mp3 --srt original.srt --output corrected.srt
 # Bulk synchronize numbered MP3 files against matching *_arabic.srt files
 python cli.py --audio-dir "C:\Quran\mp3" --srt-dir "C:\Quran\srt" --model small
 
-# Word-by-word karaoke synchronization for CapCut
+# Word-by-word karaoke subtitle synchronization
 python cli.py -a recitation.mp3 -s original.srt -o word_corrected.srt -m word --words-per-sub 1
 
 # Using Whisper Small model with 50ms pre-roll and 100ms post-roll padding
@@ -125,7 +127,7 @@ quran-srt-sync/
 │   ├── normalizer.py     # Quranic text normalization & phonetic similarity
 │   ├── audio.py          # SoundFile decoding, polyphase resampling, RMS VAD
 │   ├── srt_parser.py     # Robust SRT reader/writer with UTF-8 BOM encoding
-│   ├── aligner.py        # Multi-pass forced alignment & CapCut post-processing
+│   ├── aligner.py        # Multi-pass forced alignment & editor-friendly timing adjustments
 │   └── quran_db.py       # Surah metadata & text-based Surah identification
 ├── static/
 │   ├── index.html        # Modern Tailwind dark-mode UI with Amiri typography
@@ -143,14 +145,13 @@ quran-srt-sync/
 
 ---
 
-## 🎬 CapCut Import Tips
-
-1. **Importing the SRT into CapCut**:
-   - Open your CapCut project.
+## 🎬 Video Editor Import Tips
+1. **Importing the SRT into your video editor**:
+   - Open your video editing project.
    - Go to **Text** &rarr; **Local Captions** (or **Subtitles**) &rarr; **Import**.
    - Select the generated `_corrected.srt` file.
-   - CapCut automatically places each caption at the exact recitation timecode!
+   - The editor places each caption at its SRT timecode.
 2. **Word-by-Word Animation**:
    - Export with `--mode word`.
-   - In CapCut, apply text animation presets (e.g., Pop-in, Bounce, or Karaoke highlight).
+   - Apply text animation presets (e.g., Pop-in, Bounce, or karaoke highlighting) if desired.
    - Because each word has its exact spoken duration, the animation synchronizes with each syllable spoken by the reciter!
