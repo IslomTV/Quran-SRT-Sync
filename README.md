@@ -15,7 +15,9 @@ It solves the common problem where imported SRT subtitles lag, lead, or drift ou
 
 ### 2. Multi-Pass Hybrid Alignment Pipeline
 - **Acoustic Energy & VAD**: Computes RMS energy envelope to detect speech bursts, voice onset/offset decays, and breath silences (Waqf).
-- **Phonetic Speech Recognition**: Extracts acoustic word timestamps using OpenAI Whisper (`tiny`, `base`, `small`).
+- **Phonetic Speech Recognition**: Extracts acoustic word timestamps using OpenAI Whisper (`tiny`, `base`, `small`, `medium`).
+- **Model fallback**: Retries with Whisper Base and then Medium when subtitle words or active speech are missed; larger models take longer and may require additional memory.
+- **Best-effort output**: If all available transcripts still miss speech or subtitle words, produces a draft with a prominent warning and highlights affected lines in the web interface (the CLI reports their line numbers). Unmatched words may have interpolated timings. The downloaded SRT remains standard SRT and does not include warning markers.
 - **Dynamic Sequence Alignment**: Needleman-Wunsch / sequence alignment with custom Quranic phonetic confusion matrix to map authoritative words to spoken audio segments.
 - **Acoustic Boundary Refinement**: Snaps start/end timestamps to true vocal energy onsets and offsets.
 - **CapCut Timing Optimization**: Applies pre-roll padding, post-roll linger, minimum subtitle duration, and contiguous timing so adjacent captions have no gaps or overlaps.
@@ -52,7 +54,7 @@ It solves the common problem where imported SRT subtitles lag, lead, or drift ou
 - Python 3.10+ (Tested and verified on Python 3.13)
 - Installed dependencies:
   ```bash
-  pip install torch soundfile scipy numpy openai-whisper fastapi uvicorn python-multipart
+  pip install torch soundfile scipy numpy openai-whisper fastapi "uvicorn>=0.36" python-multipart
   ```
 
 ### Quick Launch (Web Interface)
@@ -62,6 +64,8 @@ python run_app.py
 ```
 This automatically starts the server and opens your browser at:
 `http://127.0.0.1:8000`
+On Windows, the launcher uses the selector event loop to avoid noisy connection-reset
+tracebacks when the browser closes an audio stream.
 
 ---
 
@@ -88,7 +92,7 @@ python cli.py -a audio.mp3 -s sub.srt --model small --start-pad 50 --end-pad 100
 | `-o`, `--output` | Path to output synchronized SRT | `[srt]_synced.srt` |
 | `-m`, `--mode` | `preserve`, `word`, or `verse` | `preserve` |
 | `-w`, `--words-per-sub` | Words per subtitle in `word` mode | `1` |
-| `--model` | Whisper model (`tiny`, `base`, `small`) | `small` |
+| `--model` | Whisper model (`tiny`, `base`, `small`, `medium`) | `small` |
 | `--offset` | Global timing offset in milliseconds | `0.0` |
 | `--start-pad` | Milliseconds to display before voice onset | `60.0` |
 | `--end-pad` | Milliseconds to linger after voice offset | `120.0` |

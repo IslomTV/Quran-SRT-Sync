@@ -205,6 +205,7 @@
             <label class="text-xs font-medium text-slate-300">Speech Alignment Model</label>
             <select id="whisperModel" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
               <option value="small" selected>Whisper Small (Recommended - High Precision)</option>
+              <option value="medium">Whisper Medium (Highest accuracy - larger download, slower)</option>
               <option value="base">Whisper Base (Faster - Lower Resource)</option>
               <option value="tiny">Whisper Tiny (Ultra Fast - Lower Resource)</option>
             </select>
@@ -290,6 +291,8 @@
 
     <!-- Results Section (Hidden until sync completes) -->
     <div id="resultsCard" class="hidden space-y-6">
+
+      <div id="alignmentWarning" class="hidden rounded-xl border border-amber-500/40 bg-amber-950/50 p-4 text-sm text-amber-100" role="alert"></div>
 
       <!-- Metrics Bar -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">

@@ -109,18 +109,59 @@ def _untranscribed_speech_ratio(asr_words: list[dict], vad_info: dict) -> float:
 
 
 def _largest_unmatched_srt_run(srt_entries: list[dict], asr_words: list[dict]) -> int:
-    srt_norms = [
-        normalized
-        for entry in srt_entries
+    return _srt_alignment_misses(srt_entries, asr_words)[0]
+
+
+def _srt_alignment_misses(
+    srt_entries: list[dict],
+    asr_words: list[dict]
+) -> tuple[int, set[int]]:
+    srt_word_entries = [
+        (entry_idx, normalized)
+        for entry_idx, entry in enumerate(srt_entries)
         for token in entry['text'].split()
         if (normalized := normalize_arabic(token))
     ]
+    srt_norms = [normalized for _, normalized in srt_word_entries]
     asr_norms = [word['norm'] for word in asr_words]
-    matcher = difflib.SequenceMatcher(None, srt_norms, asr_norms)
-    return max(
-        (i2 - i1 for tag, i1, i2, _, _ in matcher.get_opcodes() if tag == 'delete'),
-        default=0
-    )
+    max_unmatched_run = 0
+    missed_entry_indices = set()
+    for tag, i1, i2, _, _ in difflib.SequenceMatcher(None, srt_norms, asr_norms).get_opcodes():
+        if tag == 'delete':
+            max_unmatched_run = max(max_unmatched_run, i2 - i1)
+            missed_entry_indices.update(entry_idx for entry_idx, _ in srt_word_entries[i1:i2])
+    return max_unmatched_run, missed_entry_indices
+
+
+def _low_confidence_srt_entries(
+    srt_entries: list[dict],
+    asr_words: list[dict],
+    vad_info: dict
+) -> set[int]:
+    _, missed_entry_indices = _srt_alignment_misses(srt_entries, asr_words)
+
+    speech_mask = np.asarray(vad_info['speech_mask'], dtype=bool)
+    if not np.any(speech_mask):
+        return missed_entry_indices
+
+    covered = np.zeros(len(speech_mask), dtype=bool)
+    hop_sec = vad_info['hop_sec']
+    for word in asr_words:
+        start = max(0, int(np.floor(word['start'] / hop_sec)))
+        end = min(len(covered), int(np.ceil(word['end'] / hop_sec)))
+        covered[start:end] = True
+
+    uncovered = speech_mask & ~covered
+    starts = np.flatnonzero(uncovered & np.r_[True, ~uncovered[:-1]])
+    ends = np.flatnonzero(uncovered & np.r_[~uncovered[1:], True])
+    for start_frame, end_frame in zip(starts, ends):
+        gap_start = start_frame * hop_sec
+        gap_end = (end_frame + 1) * hop_sec
+        for entry_idx, entry in enumerate(srt_entries):
+            if entry['start_sec'] < gap_end and entry['end_sec'] > gap_start:
+                missed_entry_indices.add(entry_idx)
+
+    return missed_entry_indices
 
 
 class QuranAligner:
@@ -185,30 +226,64 @@ class QuranAligner:
         if not asr_words:
             raise RuntimeError("No speech words detected in the audio file. Please verify audio content.")
 
-        untranscribed_ratio = _untranscribed_speech_ratio(asr_words, vad_info)
-        unmatched_run = _largest_unmatched_srt_run(srt_entries, asr_words)
-        if (untranscribed_ratio > 0.12 or unmatched_run > 3) and used_model_name != 'base':
+        def alignment_quality(
+            words: list[dict]
+        ) -> tuple[bool, float, float, int, set[int]]:
+            speech_ratio = _untranscribed_speech_ratio(words, vad_info)
+            unmatched_words, missed_entry_indices = _srt_alignment_misses(srt_entries, words)
+            quality_score = speech_ratio + (0.5 * unmatched_words / max(len(srt_entries), 1))
+            fails_quality_check = speech_ratio > 0.12 or unmatched_words > 3
+            return fails_quality_check, quality_score, speech_ratio, unmatched_words, missed_entry_indices
+
+        (
+            fails_quality_check,
+            current_score,
+            untranscribed_ratio,
+            unmatched_run,
+            low_confidence_entry_indices
+        ) = alignment_quality(asr_words)
+        fallback_models = [name for name in ('base', 'medium') if name != requested_model_name]
+
+        for fallback_model in fallback_models:
+            if not fails_quality_check:
+                break
+
+            model_label = fallback_model.title()
             self._notify(
                 3,
                 TOTAL_STEPS,
-                "Whisper missed speech or subtitle words; retrying with Whisper Base..."
+                f"Whisper missed speech or subtitle words; retrying with Whisper {model_label}..."
             )
-            fallback_words = transcribe_words('base', overlap_seconds=0)
-            fallback_ratio = _untranscribed_speech_ratio(fallback_words, vad_info)
-            fallback_unmatched_run = _largest_unmatched_srt_run(srt_entries, fallback_words)
-            fallback_score = fallback_ratio + (0.5 * fallback_unmatched_run / max(len(srt_entries), 1))
-            current_score = untranscribed_ratio + (0.5 * unmatched_run / max(len(srt_entries), 1))
-            if fallback_words and fallback_score < current_score:
+            fallback_words = transcribe_words(fallback_model, overlap_seconds=0)
+            if not fallback_words:
+                continue
+
+            (
+                fallback_fails_quality_check,
+                fallback_score,
+                fallback_ratio,
+                fallback_unmatched_run,
+                fallback_missed_entry_indices
+            ) = alignment_quality(fallback_words)
+            if (fallback_fails_quality_check, fallback_score) < (fails_quality_check, current_score):
                 asr_words = fallback_words
-                used_model_name = 'base'
+                used_model_name = fallback_model
+                fails_quality_check = fallback_fails_quality_check
+                current_score = fallback_score
                 untranscribed_ratio = fallback_ratio
                 unmatched_run = fallback_unmatched_run
+                low_confidence_entry_indices = fallback_missed_entry_indices
 
-        if untranscribed_ratio > 0.12 or unmatched_run > 3:
-            raise RuntimeError(
-                "Speech recognition could not align the audio reliably "
-                f"({untranscribed_ratio:.0%} of active audio or a run of {unmatched_run} subtitle words was missed). "
-                "Try another Whisper model or a clearer audio file."
+        if fails_quality_check:
+            low_confidence_entry_indices = _low_confidence_srt_entries(
+                srt_entries, asr_words, vad_info
+            )
+            if not low_confidence_entry_indices:
+                low_confidence_entry_indices = set(range(len(srt_entries)))
+            self._notify(
+                3,
+                TOTAL_STEPS,
+                "Warning: alignment is incomplete; generating best-effort timings for review..."
             )
 
         # =====================================================================
@@ -332,6 +407,9 @@ class QuranAligner:
                     'start_sec': sub_start,
                     'end_sec': sub_end,
                     'text': sub_text,
+                    'low_confidence': any(
+                        w['entry_idx'] in low_confidence_entry_indices for w in g_words
+                    ),
                     'orig_start_sec': g_words[0]['orig_entry']['start_sec'],
                     'orig_end_sec': g_words[-1]['orig_entry']['end_sec']
                 })
@@ -357,7 +435,8 @@ class QuranAligner:
                     'orig_end_sec': entry['end_sec'],
                     'orig_start_str': entry['start_str'],
                     'orig_end_str': entry['end_str'],
-                    'text': entry['text']
+                    'text': entry['text'],
+                    'low_confidence': entry_idx in low_confidence_entry_indices
                 })
 
         # Check and handle repeated verses if enabled
@@ -410,7 +489,8 @@ class QuranAligner:
                 'start_str': sec_to_time_str(s_final),
                 'end_str': sec_to_time_str(e_final),
                 'text': item['text'],
-                'has_repetition': item.get('has_repetition', False)
+                'has_repetition': item.get('has_repetition', False),
+                'low_confidence': item.get('low_confidence', False)
             })
 
         # Make adjacent cues contiguous while preventing them from overlapping.
@@ -461,8 +541,21 @@ class QuranAligner:
             'whisper_model': used_model_name,
             'requested_whisper_model': requested_model_name,
             'used_model_fallback': used_model_name != requested_model_name,
+            'alignment_incomplete': fails_quality_check,
+            'untranscribed_speech_ratio': round(untranscribed_ratio, 4),
+            'largest_unmatched_srt_run': unmatched_run,
+            'low_confidence_subtitles': [
+                item['index'] for item in processed if item['low_confidence']
+            ],
             'mode': mode
         }
+        if fails_quality_check:
+            stats['alignment_warning'] = (
+                "Best-effort synchronization: "
+                f"{untranscribed_ratio:.0%} of active speech was not covered and "
+                f"up to {unmatched_run} consecutive subtitle words were not matched. "
+                "Review the highlighted subtitle lines before use; the downloaded SRT does not include warning markers."
+            )
 
         return {
             'synced_entries': processed,

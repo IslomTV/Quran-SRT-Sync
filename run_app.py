@@ -30,5 +30,5 @@ if __name__ == '__main__':
     print("          URL: http://127.0.0.1:8000                            ")
     print("          Press Ctrl+C to stop.                                  ")
     print("=================================================================")
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False)
-
+    loop = "asyncio:SelectorEventLoop" if sys.platform == "win32" else "auto"
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False, loop=loop)

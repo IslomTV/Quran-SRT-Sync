@@ -51,9 +51,9 @@ def main():
     )
     parser.add_argument(
         "--model",
-        choices=["tiny", "base", "small"],
+        choices=["tiny", "base", "small", "medium"],
         default="small",
-        help="Whisper model size (default: small)"
+        help="Whisper model size (default: small; medium is slower and uses more resources)"
     )
     parser.add_argument("--offset", type=float, default=0.0, help="Global subtitle offset in milliseconds (default: 0.0)")
     parser.add_argument("--start-pad", type=float, default=60.0, help="Start padding in milliseconds (default: 60.0)")
@@ -155,6 +155,9 @@ def main():
         print(f" Repetitions Caught : {stats['num_repetitions_detected']} (encompassed in subtitle timestamps)")
     print(f" Average Shift (Δt) : {stats['average_shift_sec']:+.3f} s")
     print(f" Max Shift (Δt)     : {stats['max_shift_sec']:+.3f} s")
+    if stats.get('alignment_warning'):
+        print(f" WARNING            : {stats['alignment_warning']}")
+        print(f" Review subtitle(s) : {', '.join(map(str, stats['low_confidence_subtitles']))}")
     print(f" Corrected SRT saved: {out_path}")
     print("=================================================================\n")
 

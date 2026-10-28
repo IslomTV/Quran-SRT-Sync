@@ -275,6 +275,104 @@ class TestQuranSRTSync(unittest.TestCase):
         self.assertTrue(result['stats']['used_model_fallback'])
         self.assertEqual(base_model.transcribe.call_count, 1)
 
+    def test_alignment_retries_medium_when_base_still_misses_subtitle_words(self):
+        words = ['الحمد', 'لله', 'رب', 'العالمين', 'الرحمن', 'الرحيم']
+        entries = [{
+            'index': 1, 'original_index': '1', 'start_sec': 0.0, 'end_sec': 10.0,
+            'start_str': '00:00:00,000', 'end_str': '00:00:10,000',
+            'text': ' '.join(words)
+        }]
+
+        def word_result(tokens):
+            return {
+                'segments': [{
+                    'words': [
+                        {'word': f' {word}', 'start': index * 1.5, 'end': index * 1.5 + 1.0}
+                        for index, word in tokens
+                    ]
+                }]
+            }
+
+        small_model = Mock()
+        small_model.transcribe.return_value = word_result([(0, words[0]), (5, words[5])])
+        base_model = Mock()
+        base_model.transcribe.return_value = word_result([(0, words[0]), (5, words[5])])
+        medium_model = Mock()
+        medium_model.transcribe.return_value = word_result(list(enumerate(words)))
+
+        with patch('core.aligner.load_and_resample_audio', return_value=([0.0] * 160000, 10.0, 16000)), \
+                patch('core.aligner.compute_vad_and_pauses', return_value={
+                    'pauses': [], 'intro_silence_sec': 0.0, 'outro_silence_sec': 0.0,
+                    'total_duration': 10.0, 'speech_mask': [False] * 1000, 'hop_sec': 0.01
+                }), \
+                patch('core.aligner.get_whisper_model', side_effect={
+                    'small': small_model, 'base': base_model, 'medium': medium_model
+                }.get), \
+                patch('core.aligner.refine_boundary_with_energy', side_effect=lambda time_sec, **kwargs: time_sec):
+            result = QuranAligner(whisper_model_name='small').synchronize(
+                'unused.mp3',
+                entries,
+                start_padding_ms=0,
+                end_padding_ms=0,
+                min_duration_ms=0,
+                repetition_mode='off'
+            )
+
+        self.assertEqual(result['stats']['whisper_model'], 'medium')
+        self.assertTrue(result['stats']['used_model_fallback'])
+        self.assertEqual(base_model.transcribe.call_count, 1)
+        self.assertEqual(medium_model.transcribe.call_count, 1)
+
+    def test_alignment_returns_flagged_draft_when_models_miss_subtitle_words(self):
+        entries = [
+            {
+                'index': 1, 'original_index': '1', 'start_sec': 0.0, 'end_sec': 5.0,
+                'start_str': '00:00:00,000', 'end_str': '00:00:05,000',
+                'text': 'الحمد لله رب العالمين'
+            },
+            {
+                'index': 2, 'original_index': '2', 'start_sec': 5.0, 'end_sec': 10.0,
+                'start_str': '00:00:05,000', 'end_str': '00:00:10,000',
+                'text': 'الرحمن الرحيم'
+            }
+        ]
+        model = Mock()
+        model.transcribe.return_value = {
+            'segments': [{
+                'words': [
+                    {'word': ' الرحمن', 'start': 5.0, 'end': 7.0},
+                    {'word': ' الرحيم', 'start': 7.0, 'end': 9.0}
+                ]
+            }]
+        }
+
+        with patch('core.aligner.load_and_resample_audio', return_value=([0.0] * 160000, 10.0, 16000)), \
+                patch('core.aligner.compute_vad_and_pauses', return_value={
+                    'pauses': [], 'intro_silence_sec': 0.0, 'outro_silence_sec': 0.0,
+                    'total_duration': 10.0, 'speech_mask': [False] * 1000, 'hop_sec': 0.01
+                }), \
+                patch('core.aligner.get_whisper_model', return_value=model), \
+                patch('core.aligner.refine_boundary_with_energy', side_effect=lambda time_sec, **kwargs: time_sec):
+            result = QuranAligner(whisper_model_name='medium').synchronize(
+                'unused.mp3',
+                entries,
+                start_padding_ms=0,
+                end_padding_ms=0,
+                min_duration_ms=0,
+                repetition_mode='off'
+            )
+
+        self.assertTrue(result['stats']['alignment_incomplete'])
+        self.assertEqual(result['stats']['largest_unmatched_srt_run'], 4)
+        self.assertEqual(result['stats']['low_confidence_subtitles'], [1])
+        self.assertTrue(result['stats']['alignment_warning'])
+        self.assertTrue(result['synced_entries'][0]['low_confidence'])
+        self.assertFalse(result['synced_entries'][1]['low_confidence'])
+        self.assertEqual([entry['text'] for entry in result['synced_entries']], [
+            'الحمد لله رب العالمين',
+            'الرحمن الرحيم'
+        ])
+
     def test_chunked_transcription_uses_non_overlapping_windows(self):
         model = Mock()
         model.transcribe.side_effect = [

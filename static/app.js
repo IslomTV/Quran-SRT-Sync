@@ -69,6 +69,7 @@ const statShift = document.getElementById('statShift');
 const btnDownloadSRT = document.getElementById('btnDownloadSRT');
 const btnCopySRT = document.getElementById('btnCopySRT');
 const subtitlesList = document.getElementById('subtitlesList');
+const alignmentWarning = document.getElementById('alignmentWarning');
 
 
 // =========================================================================
@@ -345,6 +346,14 @@ function renderResults(result) {
   state.syncedEntries = result.synced_entries;
   resultsCard.classList.remove('hidden');
 
+  if (result.stats.alignment_warning) {
+    alignmentWarning.textContent = result.stats.alignment_warning;
+    alignmentWarning.classList.remove('hidden');
+  } else {
+    alignmentWarning.textContent = '';
+    alignmentWarning.classList.add('hidden');
+  }
+
   // Stats
   statDuration.textContent = `${result.stats.audio_duration_sec}s`;
   statSubtitles.textContent = result.stats.total_subtitles;
@@ -361,6 +370,9 @@ function renderResults(result) {
     const row = document.createElement('div');
     row.id = `sub-row-${idx}`;
     row.className = 'p-4 hover:bg-slate-800/40 transition cursor-pointer border-l-4 border-transparent flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+    if (entry.low_confidence) {
+      row.classList.add('border-amber-500', 'bg-amber-950/20');
+    }
     row.dataset.start = entry.start_sec;
     row.dataset.end = entry.end_sec;
 
@@ -381,6 +393,11 @@ function renderResults(result) {
             <span class="text-[10px] font-mono px-2 py-0.5 rounded-full border ${shiftBadgeColor} font-medium">
               Δ ${shift > 0 ? '+' : ''}${shift.toFixed(3)}s
             </span>
+            ${entry.low_confidence ? `
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-amber-950/70 text-amber-300 border-amber-500/40">
+                Review timing
+              </span>
+            ` : ''}
             ${entry.has_repetition ? `
               <span class="text-[10px] font-mono px-2 py-0.5 rounded-full border bg-purple-900/60 text-purple-300 border-purple-500/30 font-medium">
                 🔁 Verse Repetition Encompassed
@@ -481,4 +498,3 @@ function formatTime(sec) {
   const ds = Math.floor((sec % 1) * 10);
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ds}`;
 }
-
