@@ -8,12 +8,14 @@ import sys
 import uuid
 import shutil
 import numpy as np
+from collections import OrderedDict
 from html import escape
 from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from pydantic import BaseModel
+import requests
 
 # Ensure core imports work
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,6 +27,13 @@ from core.aligner import QuranAligner
 from core.bulk import pair_bulk_files
 from core.quran_db import detect_surah_from_text
 from core.audio import load_and_resample_audio, compute_energy_envelope
+from core.capcut_timing import (
+    Preview,
+    apply_preview,
+    create_preview,
+    resolve_ambiguous_matches,
+)
+from core.quran_generator import QuranGenerator
 
 app = FastAPI(
     title="Quran SRT Sync",
@@ -45,6 +54,8 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # In-memory session store
 SESSIONS = {}
+CAPCUT_PREVIEWS: OrderedDict[str, Preview] = OrderedDict()
+QURAN_GENERATOR = QuranGenerator()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -55,7 +66,21 @@ async def serve_index():
     with open(index_file, "r", encoding="utf-8") as f:
         content = f.read()
     default_srt_dir = escape(os.path.join(CURRENT_DIR, "data", "arabic_srt"), quote=True)
-    return content.replace("__DEFAULT_ARABIC_SRT_DIR__", default_srt_dir)
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    default_capcut_dir = escape(
+        os.path.join(
+            local_app_data,
+            "CapCut",
+            "User Data",
+            "Projects",
+            "com.lveditor.draft",
+        ),
+        quote=True,
+    )
+    return (
+        content.replace("__DEFAULT_ARABIC_SRT_DIR__", default_srt_dir)
+        .replace("__DEFAULT_CAPCUT_PROJECTS_DIR__", default_capcut_dir)
+    )
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -242,6 +267,142 @@ class BulkPairSyncRequest(SyncRequest):
     srt_dir: str
     audio_filename: str
     srt_filename: str
+
+
+class CapCutPreviewRequest(BaseModel):
+    projects_dir: str
+    srt_dir: str
+    allow_overlaps: bool = True
+    extend_project_duration: bool = True
+
+
+class CapCutApplyRequest(BaseModel):
+    preview_id: str
+    selected_numbers: list[str]
+
+
+class CapCutMatchResolution(BaseModel):
+    number: str
+    srt_index: int
+    capcut_indices: list[int]
+
+
+class CapCutResolveRequest(BaseModel):
+    preview_id: str
+    resolutions: list[CapCutMatchResolution]
+
+
+class QuranGeneratorRequest(BaseModel):
+    surah: int | None = None
+    all_surahs: bool = False
+    reciter_id: int
+    translation_id: int
+    download_audio: bool = False
+    clean_translation: bool = True
+    add_numbers: bool = True
+
+
+@app.post("/api/capcut/preview")
+def preview_capcut_timing(req: CapCutPreviewRequest):
+    """Checks numbered SRT/project pairs and returns a non-destructive timing preview."""
+    try:
+        preview = create_preview(
+            srt_directory=req.srt_dir,
+            projects_directory=req.projects_dir,
+            allow_overlaps=req.allow_overlaps,
+            extend_project_duration=req.extend_project_duration,
+        )
+    except (NotADirectoryError, OSError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    preview_id = str(uuid.uuid4())
+    CAPCUT_PREVIEWS[preview_id] = preview
+    while len(CAPCUT_PREVIEWS) > 3:
+        CAPCUT_PREVIEWS.popitem(last=False)
+    return preview.to_dict(preview_id)
+
+
+@app.post("/api/capcut/resolve")
+def resolve_capcut_matches(req: CapCutResolveRequest):
+    """Applies explicit user choices to ambiguous matches in a read-only preview."""
+    preview = CAPCUT_PREVIEWS.get(req.preview_id)
+    if preview is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Preview expired or already used. Scan the folders again before resolving.",
+        )
+    try:
+        resolve_ambiguous_matches(
+            preview,
+            [
+                (item.number, item.srt_index, tuple(item.capcut_indices))
+                for item in req.resolutions
+            ],
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return preview.to_dict(req.preview_id)
+
+
+@app.get("/api/quran-generator/options")
+def quran_generator_options(refresh: bool = False):
+    try:
+        return QURAN_GENERATOR.options(force_refresh=refresh)
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except (requests.RequestException, ImportError, RuntimeError) as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not load Quran.com reciter and translation choices: {error}",
+        ) from error
+
+
+@app.post("/api/quran-generator/start")
+def start_quran_generation(req: QuranGeneratorRequest):
+    try:
+        return QURAN_GENERATOR.start(
+            surah=req.surah,
+            all_surahs=req.all_surahs,
+            reciter_id=req.reciter_id,
+            translation_id=req.translation_id,
+            download_audio=req.download_audio,
+            clean_translation=req.clean_translation,
+            add_numbers=req.add_numbers,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except FileNotFoundError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@app.get("/api/quran-generator/status/{job_id}")
+def quran_generation_status(job_id: str):
+    try:
+        return QURAN_GENERATOR.status(job_id)
+    except KeyError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+
+
+@app.post("/api/capcut/apply")
+def apply_capcut_timing(req: CapCutApplyRequest):
+    """Applies selected eligible projects from an unchanged preview."""
+    preview = CAPCUT_PREVIEWS.pop(req.preview_id, None)
+    if preview is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Preview expired or already used. Scan the folders again before applying.",
+        )
+    try:
+        result = apply_preview(preview, req.selected_numbers)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return {
+        "status": "success" if not result["errors"] else "partial",
+        "updated": result["updated"],
+        "errors": result["errors"],
+    }
 
 
 @app.post("/api/bulk/pairs")

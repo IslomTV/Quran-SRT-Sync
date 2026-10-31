@@ -95,17 +95,26 @@
   <!-- Main Container -->
   <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-    <section class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl" aria-labelledby="bulkHeading">
-      <details id="bulkDetails" class="group">
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 rounded-lg">
-          <span id="bulkHeading" role="heading" aria-level="2" class="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-brand-500"></span> Bulk Synchronization
-          </span>
-          <svg class="bulk-chevron h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m19 9-7 7-7-7"/>
-          </svg>
-        </summary>
-        <div class="mt-4 space-y-4">
+    <nav class="rounded-2xl border border-slate-800 bg-slate-900 p-1.5 shadow-lg" aria-label="Main sections">
+      <div class="grid grid-cols-3 gap-1" role="tablist" aria-label="Synchronization tools">
+        <button id="bulkTab" type="button" role="tab" aria-controls="bulkSection" aria-selected="true" tabindex="0" class="flex items-center justify-center gap-2 rounded-xl bg-slate-800 px-4 py-3 text-xs sm:text-sm font-semibold uppercase tracking-wide text-white shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+          <span class="h-2 w-2 rounded-full bg-brand-500"></span>
+          Bulk Synchronization
+        </button>
+        <button id="capcutTab" type="button" role="tab" aria-controls="capcutSection" aria-selected="false" tabindex="-1" class="flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs sm:text-sm font-semibold uppercase tracking-wide text-slate-400 transition hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
+          <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+          CapCut Timing Updater
+        </button>
+        <button id="generatorTab" type="button" role="tab" aria-controls="generatorSection" aria-selected="false" tabindex="-1" class="flex items-center justify-center gap-2 rounded-xl px-2 sm:px-4 py-3 text-[10px] sm:text-sm font-semibold uppercase tracking-wide text-slate-400 transition hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">
+          <span class="h-2 w-2 shrink-0 rounded-full bg-sky-400"></span>
+          <span>Generate SRTs</span>
+        </button>
+      </div>
+    </nav>
+
+    <section id="bulkSection" role="tabpanel" aria-labelledby="bulkTab" hidden class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <h2 id="bulkHeading" class="sr-only">Bulk Synchronization</h2>
+        <div class="space-y-4">
           <p class="text-xs text-slate-400">Enter local folder paths. MP3 files are processed first in filename order, then matched with numbered <code>*_arabic.srt</code> files. Corrected Arabic SRT files are saved in an <code>srt</code> subfolder inside the MP3 folder, using the matched <code>*_arabic.srt</code> filename.</p>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -154,11 +163,145 @@
 
           <ul id="bulkIssues" class="hidden space-y-1 text-xs text-amber-300" role="status"></ul>
         </div>
-      </details>
     </section>
 
-    <!-- Upload & Quick Overview Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <section id="capcutSection" role="tabpanel" aria-labelledby="capcutTab" hidden class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <h2 id="capcutHeading" class="sr-only">CapCut Timing Updater</h2>
+        <div class="space-y-4">
+          <p class="text-xs text-slate-400">
+            Scans the CapCut projects folder first, then matches each numbered project such as
+            <code>1. Fotiha - الفاتحة</code> to <code>1_arabic.srt</code>. Preview checks every subtitle text before proposing timing changes.
+            Consecutive split clips can match one SRT subtitle; their outer edges follow the SRT timing and internal split points are scaled proportionally. A preview never writes project files.
+          </p>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label class="space-y-1.5">
+              <span class="text-xs font-medium text-slate-300">CapCut projects folder</span>
+              <input id="capcutProjectsDir" type="text" autocomplete="off" value="__DEFAULT_CAPCUT_PROJECTS_DIR__" placeholder="C:\Users\...\CapCut\User Data\Projects\com.lveditor.draft" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-brand-500">
+            </label>
+            <label class="space-y-1.5">
+              <span class="text-xs font-medium text-slate-300">Arabic SRT folder</span>
+              <input id="capcutSrtDir" type="text" autocomplete="off" value="__DEFAULT_ARABIC_SRT_DIR__" placeholder="C:\Quran\srt\arabic" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-brand-500">
+            </label>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button id="btnCapcutPreview" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs border border-slate-700 transition">
+              Preview Matches
+            </button>
+            <button id="btnCapcutApply" type="button" disabled class="px-4 py-2 rounded-xl bg-slate-800 text-slate-500 font-medium text-xs cursor-not-allowed transition">
+              Apply Selected Updates
+            </button>
+            <span id="capcutStatus" class="text-xs text-slate-400" role="status" aria-live="polite">
+              Choose folders, then preview. No project files are changed until you apply.
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500">
+            Approved timing behavior is applied automatically: keep extra intro clips, use exact SRT times, and extend project duration when needed. Any overlap is shown in the preview.
+          </p>
+
+          <div id="capcutSummary" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-2" aria-live="polite"></div>
+          <div id="capcutIssues" class="hidden rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200" role="status"></div>
+          <div id="capcutProjectsPanel" class="hidden overflow-x-auto rounded-xl border border-slate-800">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-800/70 text-slate-400 uppercase tracking-wider">
+                <tr>
+                  <th class="px-3 py-2">Update</th>
+                  <th class="px-3 py-2">Project / SRT</th>
+                  <th class="px-3 py-2">Text verification</th>
+                  <th class="px-3 py-2">Status and review details</th>
+                </tr>
+              </thead>
+              <tbody id="capcutProjectsList" class="divide-y divide-slate-800"></tbody>
+            </table>
+          </div>
+        </div>
+    </section>
+
+    <section id="generatorSection" role="tabpanel" aria-labelledby="generatorTab" hidden class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+      <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">Quran SRT Generator</h2>
+      <div class="mt-4 space-y-4">
+        <p class="text-xs text-slate-400">
+          Generate Arabic and translation SRTs plus CSV files using the Quran subtitle generator script.
+          Choices are loaded from Quran.com. The generator writes to its configured output root and may
+          overwrite existing CSV/SRT files with the same names.
+        </p>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button id="btnLoadGeneratorOptions" type="button" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium text-xs border border-slate-700 transition">
+            Load Reciters &amp; Translations
+          </button>
+          <span id="generatorOptionsStatus" class="text-xs text-slate-400" role="status" aria-live="polite">
+            Load choices from Quran.com before starting.
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label class="space-y-1.5">
+            <span class="text-xs font-medium text-slate-300">Surah</span>
+            <select id="generatorSurah" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500">
+              <option value="1">Surah 1</option>
+            </select>
+          </label>
+          <label class="space-y-1.5">
+            <span class="text-xs font-medium text-slate-300">Reciter</span>
+            <select id="generatorReciter" disabled class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-50">
+              <option value="">Load reciter choices first</option>
+            </select>
+          </label>
+          <label class="space-y-1.5 md:col-span-2">
+            <span class="text-xs font-medium text-slate-300">Translation</span>
+            <select id="generatorTranslation" disabled class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 disabled:opacity-50">
+              <option value="">Load translation choices first</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="flex flex-wrap gap-x-6 gap-y-3">
+          <label class="flex items-center gap-2 text-xs text-slate-300">
+            <input id="generatorDownloadAudio" type="checkbox" class="accent-sky-500">
+            Download audio
+          </label>
+          <label class="flex items-center gap-2 text-xs text-slate-300">
+            <input id="generatorCleanTranslation" type="checkbox" checked class="accent-sky-500">
+            Clean translation text
+          </label>
+          <label class="flex items-center gap-2 text-xs text-slate-300">
+            <input id="generatorAddNumbers" type="checkbox" checked class="accent-sky-500">
+            Add ayah numbers
+          </label>
+        </div>
+
+        <div class="rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs text-slate-300">
+          Output root: <code id="generatorOutputRoot" class="break-all text-sky-300">Load generator choices to view</code>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button id="btnStartGenerator" type="button" disabled class="px-4 py-2 rounded-xl bg-slate-800 text-slate-500 font-medium text-xs cursor-not-allowed transition">
+            Generate
+          </button>
+          <span id="generatorStatus" class="text-xs text-slate-400" role="status" aria-live="polite">
+            Choose a surah, reciter, and translation.
+          </span>
+        </div>
+
+        <div id="generatorProgressPanel" class="hidden space-y-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3" aria-live="polite">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400">
+            <span id="generatorProgressText">Waiting for generator...</span>
+            <span id="generatorProgressCount" class="font-mono">0 / 0</span>
+          </div>
+          <div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
+            <div id="generatorProgressBar" class="bg-gradient-to-r from-sky-600 to-cyan-400 h-2 transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <pre id="generatorLog" class="custom-scrollbar max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-black/30 p-3 text-[11px] leading-relaxed text-slate-300"></pre>
+        </div>
+      </div>
+    </section>
+
+    <div id="singleSyncWorkflow" hidden class="space-y-4">
+      <h2 class="text-sm font-semibold text-slate-200 uppercase tracking-wider">Single Audio Synchronization</h2>
+      <!-- Upload & Quick Overview Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
       <!-- Upload Section (7 Cols) -->
       <div class="lg:col-span-7 space-y-4">
@@ -352,8 +495,8 @@
       <p id="progressStatus" class="text-xs text-slate-400">Initializing acoustic engine...</p>
     </div>
 
-    <!-- Results Section (Hidden until sync completes) -->
-    <div id="resultsCard" class="hidden space-y-6">
+      <!-- Results Section (Hidden until sync completes) -->
+      <div id="resultsCard" class="hidden space-y-6">
 
       <div id="alignmentWarning" class="hidden rounded-xl border border-amber-500/40 bg-amber-950/50 p-4 text-sm text-amber-100" role="alert"></div>
 
@@ -407,6 +550,7 @@
         </div>
       </div>
 
+      </div>
     </div>
 
   </main>
@@ -416,6 +560,6 @@
     <p>Quran SRT Sync &bull; Built with PyTorch, Whisper, SoundFile & FastAPI &bull; Formatted for video production</p>
   </footer>
 
-  <script src="/static/app.js?v=video-editor-copy-20261028"></script>
+  <script src="/static/app.js?v=default-translation-20261031"></script>
 </body>
 </html>

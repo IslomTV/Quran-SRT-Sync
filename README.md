@@ -41,11 +41,21 @@ It solves the common problem where imported SRT subtitles lag, lead, or drift ou
 ### 5. Modern Interactive Web Interface & Audio Player
 - **Dual Dropzone**: Drag-and-drop MP3, WAV, or M4A audio files and Arabic SRT files.
 - **Bulk Synchronization**: Enter server-local MP3 and SRT folder paths to preview numbered matches, process them with per-file progress, and save corrected SRTs directly into the SRT folder's `corrected` subfolder.
+- **Single Audio Synchronization**: The audio/SRT upload, synchronization settings, and results appear below the bulk controls only while the Bulk Synchronization tab is selected.
 - **Live Karaoke Teleprompter**: The active subtitle glows emerald and auto-scrolls in real-time as the recitation plays.
 - **Click-to-Seek**: Click any subtitle line to instantly jump playback to that timestamp.
 - **Side-by-Side Comparison**: Displays original timing, corrected timing, shift delta ($\Delta t$), and authoritative text.
 - **Inline Time Adjustments**: Micro-adjust start/end times right in the table before exporting.
 - **One-Click Sample Loader**: Instant demo using Surah Al-Fatihah recited by Mishari Rashid Al-Afasy.
+
+### 6. CapCut Timing Updater
+- Scans CapCut project folders first, then looks up the matching numbered `<number>_arabic.srt` file (for example, `1. Fotiha - الفاتحة` and `1_arabic.srt`). SRT files without a corresponding CapCut project are ignored.
+- Previews subtitle counts and verifies the Arabic subtitle text before proposing any timing changes.
+- Recognizes a split CapCut subtitle when consecutive clips on the same text track combine to match one SRT subtitle. It aligns the first clip's start and last clip's end to the SRT range, then scales the internal split boundaries proportionally while keeping the clips separate.
+- Reports unmatched SRT entries, extra CapCut subtitles, timing overlaps, and SRT ends beyond project duration.
+- Applies selected eligible projects only after an explicit browser confirmation, preserving extra subtitle clips. Updates are written atomically without creating a backup.
+- Uses the approved exact-SRT behavior by default: keeps unmatched intro/outro clips, allows timing overlaps, and extends the project duration when needed; all effects are shown in preview.
+- Previewed files are checked for changes before applying, and projects open or locked in CapCut are blocked.
 
 ---
 
@@ -67,6 +77,34 @@ This automatically starts the server and opens your browser at:
 `http://127.0.0.1:8000`
 On Windows, the launcher uses the selector event loop to avoid noisy connection-reset
 tracebacks when the browser closes an audio stream.
+
+The **CapCut Timing Updater** panel accepts a CapCut projects folder and Arabic SRT folder.
+It matches numbered projects to numbered SRTs, previews text matches and timing conflicts,
+then lets you select eligible projects to update. The preview is read-only. Applying atomically
+updates each selected `draft_content.json` without creating a backup; projects with unmatched subtitle text
+remain blocked. The approved behavior is the default: use exact SRT timing, preserve unmatched
+CapCut clips, allow any resulting overlaps, and extend project duration when needed. These
+effects are reported in the preview. Consecutive CapCut clips whose combined text matches one
+SRT entry are treated as a split group: the first clip starts and last clip ends at the SRT
+boundaries, while internal split points retain their relative positions. Apply confirmations
+and results count actual CapCut clips as well as matched SRT entries. Projects open or locked
+in CapCut must be closed before they can be updated. The CapCut project directory defaults to
+the current Windows user's local CapCut projects folder when available.
+If identical CapCut groups make a text match ambiguous, the preview lists the candidates.
+Choose the intended group and confirm the choice to update the read-only preview; unmatched
+duplicate clips remain unchanged. The project still requires a separate Apply confirmation.
+Use the top navigation tabs to switch between Bulk Synchronization, CapCut Timing Updater,
+and Quran SRT Generator; Bulk Synchronization is selected by default, and the single-audio
+upload and synchronization workflow is shown only in that tab. The generator UI loads
+reciters and translations from Quran.com, selects the generator's configured default translation
+whenever choices load, then runs the existing
+`C:\GitHub\quran-subtitle-generator\quran_srt_generator.py` script in a background process.
+Choose one surah or all 114, select the reciter and translation, and monitor progress and
+per-surah errors in the panel. Translation IDs are used so duplicate translator names remain
+distinct. Generated CSV/SRT files use the generator script's configured
+output root. Existing same-named CSV/SRT files are overwritten without backups; existing
+audio files are skipped. The script repository and its Python dependencies must be available
+on the machine running the web app.
 
 For bulk synchronization in the web interface, enter the local MP3 folder and the local
 Arabic SRT folder (pre-filled with `<application-folder>\data\arabic_srt`), then select
@@ -115,7 +153,6 @@ Bulk mode scans MP3 files in sorted filename order, then finds each matching Ara
 | `--start-pad` | Milliseconds to display before voice onset | `60.0` |
 | `--end-pad` | Milliseconds to linger after voice offset | `120.0` |
 | `--min-dur` | Minimum duration per subtitle in ms | `600.0` |
-| `--allow-overlaps`| Disable contiguous timing; allow gaps and overlapping timestamps | `False` |
 
 ---
 

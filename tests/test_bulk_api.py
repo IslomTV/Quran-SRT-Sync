@@ -40,6 +40,25 @@ class TestBulkApi(unittest.TestCase):
 
         self.assertIn(f'value="{expected_path}"', page)
         self.assertNotIn("__DEFAULT_ARABIC_SRT_DIR__", page)
+        self.assertNotIn("__DEFAULT_CAPCUT_PROJECTS_DIR__", page)
+        self.assertIn('id="capcutProjectsDir"', page)
+
+    def test_main_tool_sections_use_top_tabs_instead_of_collapsed_details(self):
+        page = asyncio.run(app.serve_index())
+
+        self.assertIn('role="tablist"', page)
+        self.assertIn('id="bulkTab" type="button" role="tab" aria-controls="bulkSection" aria-selected="true" tabindex="0"', page)
+        self.assertIn('id="capcutTab"', page)
+        self.assertIn('id="generatorTab"', page)
+        self.assertIn('role="tabpanel" aria-labelledby="bulkTab"', page)
+        self.assertIn('role="tabpanel" aria-labelledby="capcutTab" hidden', page)
+        self.assertIn('role="tabpanel" aria-labelledby="generatorTab" hidden', page)
+        self.assertIn('<div id="singleSyncWorkflow" hidden class="space-y-4">', page)
+        app_script = (Path(app.STATIC_DIR) / "app.js").read_text(encoding="utf-8")
+        self.assertIn("singleSyncWorkflow.hidden = sectionTabs[index].id !== 'bulkTab';", app_script)
+        self.assertIn("generatorTranslation.value = String(data.default_translation_id);", app_script)
+        self.assertNotIn('id="bulkDetails"', page)
+        self.assertNotIn('id="capcutDetails"', page)
 
     def test_favicon_route_serves_svg_asset(self):
         response = asyncio.run(app.serve_favicon())
